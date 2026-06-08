@@ -155,6 +155,15 @@ void SteamClient_Frame( void ) {
 
 /*
 ================
+SteamClient_InitForFilesystem
+================
+*/
+qboolean SteamClient_InitForFilesystem( void ) {
+	return qfalse;
+}
+
+/*
+================
 SteamAPI_Shutdown
 ================
 */

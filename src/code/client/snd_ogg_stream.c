@@ -63,7 +63,7 @@ static size_t S_OggReadCallback( void *ptr, size_t size, size_t nmemb, void *dat
 	if ( bytesRead <= 0 ) {
 		return 0;
 	}
-	return (size_t)( bytesRead / (int)size );
+	return (size_t)bytesRead;
 }
 
 /*

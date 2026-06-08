@@ -1093,6 +1093,7 @@ void CL_InitKeyCommands( void );
 void CL_Init( void );
 void CL_RegisterCGameCvars( void );
 void SteamClient_Init( void );
+qboolean SteamClient_InitForFilesystem( void );
 qboolean SteamClient_IsInitialized( void );
 void SteamClient_Frame( void );
 void SteamAPI_Shutdown( void );

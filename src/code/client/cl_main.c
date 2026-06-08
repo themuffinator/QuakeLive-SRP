@@ -973,6 +973,51 @@ static void SteamClient_SetInitializedState( const ql_platform_service_table *se
 
 /*
 =============
+SteamClient_ShouldRefreshPlatformServices
+
+Returns whether a source-side lazy Steam service refresh may run outside the
+retail SteamClient_Init owner.
+=============
+*/
+static qboolean SteamClient_ShouldRefreshPlatformServices( void ) {
+	if ( com_buildScript && com_buildScript->integer ) {
+		return qfalse;
+	}
+
+	if ( Cvar_VariableIntegerValue( "com_build" ) ) {
+		return qfalse;
+	}
+
+	return qtrue;
+}
+
+/*
+=============
+SteamClient_InitForFilesystem
+
+Refreshes the source-only early Steam service state before filesystem startup
+so the retained SteamID homepath path can consume SteamClient_GetSteamID
+without turning the wrapper itself into an initialization owner.
+=============
+*/
+qboolean SteamClient_InitForFilesystem( void ) {
+	const ql_platform_service_table *services;
+
+	if ( !CL_SteamServicesEnabled() ) {
+		return qfalse;
+	}
+
+	if ( !SteamClient_ShouldRefreshPlatformServices() ) {
+		return qfalse;
+	}
+
+	services = QL_RefreshPlatformServices();
+	SteamClient_SetInitializedState( services );
+	return SteamClient_IsInitialized();
+}
+
+/*
+=============
 SteamClient_GetSteamID
 
 Mirrors the retail SteamUser()->GetSteamID wrapper behind the retained Steam
@@ -980,14 +1025,8 @@ client initialisation flag.
 =============
 */
 unsigned long long SteamClient_GetSteamID( void ) {
-	const ql_platform_service_table *services;
 	uint32_t steamIdLow;
 	uint32_t steamIdHigh;
-
-	if ( !SteamClient_IsInitialized() ) {
-		services = QL_RefreshPlatformServices();
-		SteamClient_SetInitializedState( services );
-	}
 
 	if ( !SteamClient_IsInitialized() ) {
 		return 0ull;
@@ -1011,7 +1050,6 @@ issued auth-ticket handle in the client Steam owner.
 =============
 */
 int SteamClient_GetAuthSessionTicket( char *ticketBuffer, int ticketBufferSize ) {
-	const ql_platform_service_table *services;
 	int ticketLength;
 	uint32_t ticketHandle;
 
@@ -1021,11 +1059,6 @@ int SteamClient_GetAuthSessionTicket( char *ticketBuffer, int ticketBufferSize )
 
 	if ( !ticketBuffer || ticketBufferSize <= 0 ) {
 		return 0;
-	}
-
-	if ( !SteamClient_IsInitialized() ) {
-		services = QL_RefreshPlatformServices();
-		SteamClient_SetInitializedState( services );
 	}
 
 	if ( !SteamClient_IsInitialized() ) {
@@ -1075,13 +1108,6 @@ client Steam initialisation flag.
 =============
 */
 qboolean SteamApps_BIsSubscribedApp( unsigned int appId ) {
-	const ql_platform_service_table *services;
-
-	if ( !SteamClient_IsInitialized() ) {
-		services = QL_RefreshPlatformServices();
-		SteamClient_SetInitializedState( services );
-	}
-
 	if ( !SteamClient_IsInitialized() ) {
 		return qfalse;
 	}
@@ -1098,18 +1124,11 @@ compatibility-owned output fallback deterministic.
 =============
 */
 qboolean SteamUGC_GetItemDownloadInfo( unsigned int itemIdLow, unsigned int itemIdHigh, unsigned long long *outDownloaded, unsigned long long *outTotal ) {
-	const ql_platform_service_table *services;
-
 	if ( outDownloaded ) {
 		*outDownloaded = 0ull;
 	}
 	if ( outTotal ) {
 		*outTotal = 0ull;
-	}
-
-	if ( !SteamClient_IsInitialized() ) {
-		services = QL_RefreshPlatformServices();
-		SteamClient_SetInitializedState( services );
 	}
 
 	if ( !SteamClient_IsInitialized() ) {
@@ -1128,19 +1147,12 @@ client initialisation flag.
 =============
 */
 qboolean SteamUtils_GetIPCountry( char *buffer, size_t bufferSize ) {
-	const ql_platform_service_table *services;
-
 	if ( buffer && bufferSize > 0 ) {
 		buffer[0] = '\0';
 	}
 
 	if ( !buffer || bufferSize == 0 ) {
 		return qfalse;
-	}
-
-	if ( !SteamClient_IsInitialized() ) {
-		services = QL_RefreshPlatformServices();
-		SteamClient_SetInitializedState( services );
 	}
 
 	if ( !SteamClient_IsInitialized() ) {
@@ -1154,11 +1166,13 @@ qboolean SteamUtils_GetIPCountry( char *buffer, size_t bufferSize ) {
 =============
 SteamAPI_Shutdown
 
-Mirrors the retail SteamAPI_Shutdown quit-path thunk while keeping client-owned
-Steam callback and ticket teardown ahead of the platform-service release.
+Mirrors the retail SteamAPI_Shutdown quit-path thunk while keeping the
+client-owned SteamDataSource, callback, and ticket teardown ahead of the
+platform-service release.
 =============
 */
 void SteamAPI_Shutdown( void ) {
+	CL_ShutdownSteamResources();
 	CL_Steam_ShutdownCallbacks();
 	QL_Steamworks_Shutdown();
 }
@@ -2898,6 +2912,11 @@ static void CL_Steam_SetMatchRichPresence( void ) {
 		return;
 	}
 
+	if ( !SteamClient_IsInitialized() ) {
+		CL_LogMatchmakingServiceIgnored( "steam_presence_match", "matchmaking provider initialisation failed" );
+		return;
+	}
+
 	if ( !QL_Steamworks_SetRichPresence( "status", "Playing a match" ) ) {
 		CL_LogMatchmakingServiceIgnored( "steam_presence_match", "rich presence update failed" );
 	}
@@ -2934,7 +2953,11 @@ static void CL_WebView_PublishPackedGameStart( uint32_t packedIp, unsigned int p
 	char	lanAddress[64];
 	char	payload[CL_STEAM_BROWSER_EVENT_PAYLOAD_LENGTH];
 
-	if ( publishLanIp && CL_SteamServicesEnabled() && !clc.demoplaying ) {
+	if ( clc.demoplaying ) {
+		return;
+	}
+
+	if ( publishLanIp && SteamClient_IsInitialized() ) {
 		Com_sprintf( lanAddress, sizeof( lanAddress ), "%lu:%u", (unsigned long)packedIp, port );
 		QL_Steamworks_SetRichPresence( "lanIp", lanAddress );
 	}
@@ -3299,7 +3322,7 @@ Returns qtrue when an opted-in Steamworks build can service WebUI server-list re
 */
 static qboolean CL_SteamBrowser_NativeListAvailable( void ) {
 #if QL_PLATFORM_HAS_STEAMWORKS
-	return ( CL_MatchmakingServiceAvailable() && QL_Steamworks_HasServerBrowserInterface() ) ? qtrue : qfalse;
+	return ( SteamClient_IsInitialized() && CL_MatchmakingServiceAvailable() && QL_Steamworks_HasServerBrowserInterface() ) ? qtrue : qfalse;
 #else
 	return qfalse;
 #endif
@@ -5182,6 +5205,11 @@ qboolean CL_Steam_OpenOverlayUrl( const char *url ) {
 		return qfalse;
 	}
 
+	if ( !SteamClient_IsInitialized() ) {
+		CL_LogSocialOverlayIgnored( "OpenSteamOverlayURL", "social overlay initialisation failed" );
+		return qfalse;
+	}
+
 	if ( !QL_Steamworks_ActivateOverlayToWebPage( url ) ) {
 		CL_LogSocialOverlayIgnored( "OpenSteamOverlayURL", "overlay page activation failed" );
 		return qfalse;
@@ -5206,6 +5234,11 @@ qboolean CL_Steam_CreateLobby( void ) {
 		return qfalse;
 	}
 
+	if ( !SteamClient_IsInitialized() ) {
+		CL_LogMatchmakingServiceIgnored( "CreateLobby", "matchmaking provider initialisation failed" );
+		return qfalse;
+	}
+
 	maxMembers = cl_steamMaxLobbyClients ? cl_steamMaxLobbyClients->integer : 16;
 	return QL_Steamworks_CreateLobby( maxMembers );
 }
@@ -5221,6 +5254,11 @@ already used by the lobby-enter callback lane.
 qboolean CL_Steam_LeaveLobby( void ) {
 	if ( !CL_SteamServicesEnabled() ) {
 		CL_LogMatchmakingServiceIgnored( "LeaveLobby", "matchmaking provider unavailable" );
+		return qfalse;
+	}
+
+	if ( !SteamClient_IsInitialized() ) {
+		CL_LogMatchmakingServiceIgnored( "LeaveLobby", "matchmaking provider initialisation failed" );
 		return qfalse;
 	}
 
@@ -5242,6 +5280,11 @@ qboolean CL_Steam_JoinLobby( const char *lobbyId ) {
 
 	if ( !CL_SteamServicesEnabled() ) {
 		CL_LogMatchmakingServiceIgnored( "JoinLobby", "matchmaking provider unavailable" );
+		return qfalse;
+	}
+
+	if ( !SteamClient_IsInitialized() ) {
+		CL_LogMatchmakingServiceIgnored( "JoinLobby", "matchmaking provider initialisation failed" );
 		return qfalse;
 	}
 
@@ -5272,6 +5315,11 @@ qboolean CL_Steam_SetLobbyServer( unsigned int serverIp, unsigned short serverPo
 		return qfalse;
 	}
 
+	if ( !SteamClient_IsInitialized() ) {
+		CL_LogMatchmakingServiceIgnored( "SetLobbyServer", "matchmaking provider initialisation failed" );
+		return qfalse;
+	}
+
 	if ( !CL_Steam_GetCurrentLobbyIdentityWords( &lobbyIdLow, &lobbyIdHigh ) ) {
 		CL_LogMatchmakingServiceIgnored( "SetLobbyServer", "no active lobby" );
 		return qfalse;
@@ -5293,6 +5341,11 @@ qboolean CL_Steam_ShowInviteOverlay( void ) {
 
 	if ( !CL_SteamServicesEnabled() ) {
 		CL_LogMatchmakingServiceIgnored( "ShowInviteOverlay", "matchmaking provider unavailable" );
+		return qfalse;
+	}
+
+	if ( !SteamClient_IsInitialized() ) {
+		CL_LogMatchmakingServiceIgnored( "ShowInviteOverlay", "matchmaking provider initialisation failed" );
 		return qfalse;
 	}
 
@@ -5322,6 +5375,11 @@ qboolean CL_Steam_Invite( const char *steamId ) {
 
 	if ( !CL_SteamServicesEnabled() ) {
 		CL_LogMatchmakingServiceIgnored( "Invite", "matchmaking provider unavailable" );
+		return qfalse;
+	}
+
+	if ( !SteamClient_IsInitialized() ) {
+		CL_LogMatchmakingServiceIgnored( "Invite", "matchmaking provider initialisation failed" );
 		return qfalse;
 	}
 
@@ -5373,6 +5431,11 @@ qboolean CL_Steam_SayLobby( const char *message ) {
 		return qfalse;
 	}
 
+	if ( !SteamClient_IsInitialized() ) {
+		CL_LogMatchmakingServiceIgnored( "SayLobby", "matchmaking provider initialisation failed" );
+		return qfalse;
+	}
+
 	if ( !CL_Steam_GetCurrentLobbyIdentityWords( &lobbyIdLow, &lobbyIdHigh ) ) {
 		CL_LogMatchmakingServiceIgnored( "SayLobby", "no active lobby" );
 		return qfalse;
@@ -5399,6 +5462,11 @@ qboolean CL_Steam_RequestAllUGC( int filter ) {
 		return qfalse;
 	}
 
+	if ( !SteamClient_IsInitialized() ) {
+		CL_LogWorkshopLifecycle( "request-ugc-query", "workshop provider initialisation failed" );
+		return qfalse;
+	}
+
 	Com_sprintf( detail, sizeof( detail ), "forwarding %s value %d (semantic=%s)",
 		QL_Steamworks_GetAllUGCFilterContractLabel(),
 		filter,
@@ -5422,6 +5490,11 @@ qboolean CL_Steam_RequestUserStats( const char *steamId ) {
 
 	if ( !CL_SteamServicesEnabled() ) {
 		CL_LogStatsServiceIgnored( "RequestUserStats", "stats provider unavailable" );
+		return qfalse;
+	}
+
+	if ( !SteamClient_IsInitialized() ) {
+		CL_LogStatsServiceIgnored( "RequestUserStats", "stats provider initialisation failed" );
 		return qfalse;
 	}
 
@@ -5454,6 +5527,11 @@ qboolean CL_Steam_ActivateOverlayToUser( const char *dialog, const char *steamId
 
 	if ( !CL_SteamServicesEnabled() ) {
 		CL_LogSocialOverlayIgnored( "ActivateGameOverlayToUser", "social overlay provider unavailable" );
+		return qfalse;
+	}
+
+	if ( !SteamClient_IsInitialized() ) {
+		CL_LogSocialOverlayIgnored( "ActivateGameOverlayToUser", "social overlay initialisation failed" );
 		return qfalse;
 	}
 
@@ -6085,6 +6163,12 @@ static void CL_Steam_Lobby_OnLobbyChatMessage( void *context, const ql_steam_lob
 		return;
 	}
 
+	if ( event->chatEntryType != 1 ) {
+		Com_sprintf( detail, sizeof( detail ), "ignored non-chat entry type=%d", event->chatEntryType );
+		CL_LogMatchmakingCallbackLifecycle( "lobby_chat_message", detail );
+		return;
+	}
+
 	memset( &summary, 0, sizeof( summary ) );
 	QL_Steamworks_GetFriendSummary( (uint32_t)( event->chatter.value & 0xffffffffu ), (uint32_t)( event->chatter.value >> 32 ), &summary );
 	CL_Steam_FormatSteamId( event->lobbyId.value, lobbyId, sizeof( lobbyId ) );
@@ -6446,13 +6530,12 @@ static qboolean CL_Steam_RegisterWorkshopCallbacks( const char *workshopProvider
 =============
 SteamClient_RecoverCallbackBootstrap
 
-Retries the retail callback-bundle bootstrap after launch-time Steam
-unavailability without re-registering console commands or lobby cvars.
+Retries the retail callback-bundle bootstrap after callback registration
+failure without making the frame loop a second Steam initialization owner.
 =============
 */
 static void SteamClient_RecoverCallbackBootstrap( void ) {
 	static int	nextRetryTime = 0;
-	const ql_platform_service_table *services;
 	const char	*workshopProvider;
 	const char	*workshopPolicy;
 	qboolean	clientCallbacksRegistered;
@@ -6468,11 +6551,11 @@ static void SteamClient_RecoverCallbackBootstrap( void ) {
 	}
 	nextRetryTime = cls.realtime + CL_STEAM_CALLBACK_RECOVERY_RETRY_MSEC;
 
-	services = QL_RefreshPlatformServices();
-	CL_RefreshPlatformServiceCvars();
-	SteamClient_SetInitializedState( services );
-
 	if ( !SteamClient_IsInitialized() ) {
+		return;
+	}
+
+	if ( !SteamClient_ShouldRefreshPlatformServices() ) {
 		return;
 	}
 
@@ -6567,14 +6650,10 @@ SteamClient_Frame
 =============
 */
 void SteamClient_Frame( void ) {
-	const ql_platform_service_table *services;
-
 	if ( !CL_SteamServicesEnabled() ) {
 		return;
 	}
 
-	services = QL_RefreshPlatformServices();
-	SteamClient_SetInitializedState( services );
 	if ( !SteamClient_IsInitialized() ) {
 		return;
 	}
@@ -6619,15 +6698,6 @@ ID into lobby_autoconnect.
 =============
 */
 static void CL_Steam_ConnectLobby_f( void ) {
-	if ( Cmd_Argc() < 2 ) {
-		CL_LogMatchmakingServiceIgnored( "connect_lobby", "missing lobby id" );
-		return;
-	}
-
-	if ( !CL_SteamServicesEnabled() ) {
-		CL_LogMatchmakingServiceIgnored( "connect_lobby", "matchmaking provider unavailable" );
-	}
-
 	Cvar_Set( "lobby_autoconnect", Cmd_Argv( 1 ) );
 }
 
@@ -6639,19 +6709,14 @@ Restores the retail Steam lobby bootstrap seam that owns the lobby callback
 bundle plus the lobby cvars and connect_lobby command registration.
 =============
 */
-static qboolean SteamLobby_Init( void ) {
-	qboolean	callbacksRegistered;
-
-	callbacksRegistered = qfalse;
+static void SteamLobby_Init( void ) {
 	if ( SteamClient_IsInitialized() ) {
-		callbacksRegistered = SteamLobbyCallbacks_Init();
+		SteamLobbyCallbacks_Init();
 	}
 
 	cl_lobbyAutoConnect = Cvar_Get( "lobby_autoconnect", "", CVAR_TEMP );
 	cl_steamMaxLobbyClients = Cvar_Get( "steam_maxLobbyClients", "16", CVAR_ARCHIVE );
 	Cmd_AddCommand ("connect_lobby", CL_Steam_ConnectLobby_f );
-
-	return callbacksRegistered;
 }
 
 /*
@@ -6669,7 +6734,6 @@ void SteamClient_Init( void ) {
 	const char	*workshopPolicy;
 	qboolean	clientCallbacksRegistered;
 	qboolean	microCallbacksRegistered;
-	qboolean	lobbyCallbacksRegistered;
 
 	cl_statsClearRegistered = qfalse;
 	cl_steamClientInitialized = qfalse;
@@ -6694,24 +6758,22 @@ void SteamClient_Init( void ) {
 
 	if ( !SteamClient_IsInitialized() ) {
 		CL_LogClientCallbackBootstrapFallback( "online services disabled; keeping compatibility-only browser event fallback" );
-	} else {
-		clientCallbacksRegistered = SteamCallbacks_Init();
-		if ( clientCallbacksRegistered ) {
-			microCallbacksRegistered = SteamMicroCallbacks_Init();
-		}
+		return;
 	}
 
-	lobbyCallbacksRegistered = SteamLobby_Init();
-	if ( SteamClient_IsInitialized() ) {
-		if ( !clientCallbacksRegistered || !microCallbacksRegistered || !lobbyCallbacksRegistered ) {
-			CL_LogClientCallbackBootstrapFallback( "callback registration failed; keeping compatibility-only browser event fallback" );
-			QL_Steamworks_UnregisterMicroCallbacks();
-			QL_Steamworks_UnregisterLobbyCallbacks();
-			QL_Steamworks_UnregisterClientCallbacks();
-		} else {
-			CL_Steam_RegisterWorkshopCallbacks( workshopProvider, workshopPolicy );
-			cl_steamCallbackState.callbackRegistrationActive = qtrue;
-		}
+	clientCallbacksRegistered = SteamCallbacks_Init();
+	if ( clientCallbacksRegistered ) {
+		microCallbacksRegistered = SteamMicroCallbacks_Init();
+	}
+	SteamLobby_Init();
+	if ( !clientCallbacksRegistered || !microCallbacksRegistered ) {
+		CL_LogClientCallbackBootstrapFallback( "callback registration failed; keeping compatibility-only browser event fallback" );
+		QL_Steamworks_UnregisterMicroCallbacks();
+		QL_Steamworks_UnregisterLobbyCallbacks();
+		QL_Steamworks_UnregisterClientCallbacks();
+	} else {
+		CL_Steam_RegisterWorkshopCallbacks( workshopProvider, workshopPolicy );
+		cl_steamCallbackState.callbackRegistrationActive = qtrue;
 	}
 
 	Cmd_AddCommand ("+voice", CL_VoiceStartRecording_f );
@@ -6721,13 +6783,15 @@ void SteamClient_Init( void ) {
 		cl_statsClearRegistered = qtrue;
 	}
 	CL_Steam_SetMainMenuRichPresence();
+	Com_Printf( "Steam API initialized.\n" );
 }
 
 /*
 =============
 SteamClient_SyncPersonaNameCvar
 
-Mirrors the retail Steam persona bootstrap and respects the retail com_build harness gate.
+Mirrors the retail Steam persona bootstrap and respects the retained Steam
+initialization owner.
 =============
 */
 static void SteamClient_SyncPersonaNameCvar( void ) {
@@ -6738,12 +6802,13 @@ static void SteamClient_SyncPersonaNameCvar( void ) {
 		return;
 	}
 
-	if ( com_buildScript && com_buildScript->integer ) {
+	if ( !SteamClient_ShouldRefreshPlatformServices() ) {
 		return;
 	}
 
-	if ( !QL_Steamworks_Init() ) {
+	if ( !SteamClient_IsInitialized() ) {
 		CL_LogIdentityBootstrapFallback( "steam_persona_name", "identity bootstrap initialisation failed" );
+		Cvar_Set( "name", "anon" );
 		return;
 	}
 
@@ -6776,7 +6841,11 @@ static void CL_Steam_SeedCountryCvar( void ) {
 		return;
 	}
 
-	if ( !QL_Steamworks_Init() ) {
+	if ( !SteamClient_ShouldRefreshPlatformServices() ) {
+		return;
+	}
+
+	if ( !SteamClient_IsInitialized() ) {
 		CL_LogIdentityBootstrapFallback( "steam_country_seed", "identity bootstrap initialisation failed" );
 		return;
 	}

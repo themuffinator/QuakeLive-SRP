@@ -54,7 +54,7 @@ static size_t S_VorbisBufferRead( void *ptr, size_t size, size_t nmemb, void *da
 	Com_Memcpy( ptr, buffer->data + buffer->position, count );
 	buffer->position += (int)count;
 
-	return count / size;
+	return count;
 }
 
 /*
@@ -174,8 +174,8 @@ qboolean S_VorbisDecodeMemory( const char *name, const byte *data, int length, w
 	}
 
 	if ( channels != 1 ) {
-		Com_Printf( "%s is not a mono file\n", name ? name : "<unnamed>" );
 		ov_clear( &vorbisFile );
+		Com_Error( ERR_DROP, "%s is not a mono file", name ? name : "<unnamed>" );
 		return qfalse;
 	}
 

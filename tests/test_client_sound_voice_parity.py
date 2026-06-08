@@ -2,10 +2,15 @@
 
 from __future__ import annotations
 
+import csv
+import json
 from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
+ALIASES = REPO_ROOT / "references" / "analysis" / "quakelive_symbol_aliases.json"
+FUNCTIONS_CSV = REPO_ROOT / "references" / "reverse-engineering" / "ghidra" / "quakelive_steam" / "functions.csv"
+QL_STEAM_HLIL = REPO_ROOT / "references" / "hlil" / "quakelive" / "quakelive_steam.exe" / "quakelive_steam.exe_hlil.txt"
 CL_CGAME = REPO_ROOT / "src" / "code" / "client" / "cl_cgame.c"
 CL_MAIN = REPO_ROOT / "src" / "code" / "client" / "cl_main.c"
 PLATFORM_STEAMWORKS = REPO_ROOT / "src" / "common" / "platform" / "platform_steamworks.c"
@@ -14,6 +19,7 @@ SND_LOCAL = REPO_ROOT / "src" / "code" / "client" / "snd_local.h"
 SND_MEM = REPO_ROOT / "src" / "code" / "client" / "snd_mem.c"
 SND_MIX = REPO_ROOT / "src" / "code" / "client" / "snd_mix.c"
 SND_OGG_DECODE = REPO_ROOT / "src" / "code" / "client" / "snd_ogg_decode.c"
+SND_OGG_STREAM = REPO_ROOT / "src" / "code" / "client" / "snd_ogg_stream.c"
 SND_PUBLIC = REPO_ROOT / "src" / "code" / "client" / "snd_public.h"
 
 # Retail console-command owner evidence for this sound slice comes from
@@ -23,6 +29,43 @@ SND_PUBLIC = REPO_ROOT / "src" / "code" / "client" / "snd_public.h"
 # `sub_4DAFD0` -> `S_SoundList_f`
 # `sub_4DB710` -> `S_Play_f`
 # `sub_4DB810` -> `S_Music_f`
+
+
+SOUND_HELPER_ALIASES = {
+	"sub_4D9B20": ("S_SoundFileTypeForPath", "FUN_004d9b20", "63"),
+	"sub_4DAB00": ("S_AddVoiceSamples", "FUN_004dab00", "373"),
+	"sub_4DB1C0": ("S_UpdateBackgroundTrack", "FUN_004db1c0", "347"),
+	"sub_4DBBA0": ("SND_shutdown", "FUN_004dbba0", "50"),
+	"sub_4DBD00": ("S_LoadSound", "FUN_004dbd00", "228"),
+	"sub_4DC6A0": ("S_VorbisBufferRead", "FUN_004dc6a0", "62"),
+	"sub_4DC6E0": ("S_VorbisBufferSeek", "FUN_004dc6e0", "61"),
+	"sub_4DC720": ("S_VorbisBufferTell", "FUN_004dc720", "13"),
+	"sub_4DC730": ("S_VorbisDecodeMemory", "FUN_004dc730", "490"),
+	"sub_4DC920": ("S_LoadOggSound", "FUN_004dc920", "55"),
+	"sub_4DC960": ("S_OggReadCallback", "FUN_004dc960", "31"),
+	"sub_4DC980": ("S_OggCloseCallback", "FUN_004dc980", "21"),
+	"sub_4DC9A0": ("S_OpenBackgroundOgg", "FUN_004dc9a0", "156"),
+	"sub_4DCA40": ("S_CloseBackgroundOgg", "FUN_004dca40", "12"),
+	"sub_4DCAD0": ("S_FindWavChunk", "FUN_004dcad0", "71"),
+	"sub_4DCB20": ("GetWavinfo", "FUN_004dcb20", "326"),
+	"sub_4DCC70": ("S_LoadWavSound", "FUN_004dcc70", "177"),
+}
+
+SOUND_REGISTRATION_ALIASES = {
+	"sub_4D9D00": ("S_FindName", "FUN_004d9d00", "266"),
+	"sub_4D9E10": ("S_memoryLoad", "FUN_004d9e10", "50"),
+	"sub_4D9E50": ("S_RegisterSound", "FUN_004d9e50", "151"),
+	"sub_4DB320": ("S_FreeOldestSound", "FUN_004db320", "126"),
+	"sub_4DB3A0": ("S_BeginRegistration", "FUN_004db3a0", "78"),
+}
+
+SOUND_BACKGROUND_ALIASES = {
+	"sub_4DB030": ("S_StopBackgroundTrack", "FUN_004db030", "35"),
+	"sub_4DB060": ("S_StartBackgroundTrack", "FUN_004db060", "351"),
+	"sub_4DB1C0": ("S_UpdateBackgroundTrack", "FUN_004db1c0", "347"),
+	"sub_4DCA40": ("S_CloseBackgroundOgg", "FUN_004dca40", "12"),
+	"sub_4DCA50": ("S_OggUpdateBackgroundTrack", "FUN_004dca50", "114"),
+}
 
 
 def _extract_function_block(source: str, marker: str) -> str:
@@ -40,6 +83,179 @@ def _extract_function_block(source: str, marker: str) -> str:
 				return source[start:index + 1]
 
 	raise AssertionError(f"Unbalanced block for marker: {marker}")
+
+
+def test_sound_helper_aliases_cover_retail_ogg_wav_voice_cluster() -> None:
+	aliases = json.loads(ALIASES.read_text(encoding="utf-8"))["quakelive_steam_srp"]
+	function_rows = {
+		row["name"]: row
+		for row in csv.DictReader(FUNCTIONS_CSV.read_text(encoding="utf-8").splitlines())
+	}
+	hlil = QL_STEAM_HLIL.read_text(encoding="utf-8")
+	snd_dma = SND_DMA.read_text(encoding="utf-8")
+	snd_mem = SND_MEM.read_text(encoding="utf-8")
+
+	for alias, (name, ghidra_name, size) in SOUND_HELPER_ALIASES.items():
+		assert aliases[alias] == name
+		assert function_rows[ghidra_name]["size"] == size
+
+	for expected in (
+		'004d9b20    int32_t sub_4d9b20(char* arg1)',
+		'if (sub_4d9060(eax_1, ".ogg") == 0)',
+		'004dab00    void sub_4dab00(int32_t arg1, int32_t arg2, int32_t arg3)',
+		'void* ecx = &data_13e1860',
+		'"client %d silenced: no voices le',
+		'004db1c0    int32_t sub_4db1c0()',
+		'sub_4dca50(&var_7538, esi_3)',
+		'sub_4da840(divs.dp.d',
+		'004dbba0    int32_t sub_4dbba0()',
+		'data_12c5b8c = 0',
+		'free(result)',
+		'004dbd00    int32_t sub_4dbd00(int32_t* arg1)',
+		'sub_4d9b20(&arg1[4])',
+		'sub_4cf640(&arg1[4], &var_4c, 1)',
+		'sub_4d9a60(&var_48, 0x40, ".ogg")',
+		'result_1 = sub_4dc920(arg1, ecx_2, eax_4)',
+		'result_1 = sub_4dcc70(arg1, ecx_2)',
+		'sub_4cf320(ecx_2)',
+		'004dc6a0    int32_t sub_4dc6a0(int32_t arg1, int32_t arg2, int32_t arg3, void* arg4)',
+		'if (result u> eax - ecx - 1)',
+		'memcpy(arg1, ecx, result)',
+		'004dc6e0    int32_t sub_4dc6e0(int32_t* arg1, int32_t arg2, int32_t arg3)',
+		'004dc720    int32_t sub_4dc720(int32_t* arg1)',
+		'return arg1[1] - *arg1',
+		'004dc730    int32_t __convention("regparm") sub_4dc730',
+		'sub_4fda00(&var_2f4, &var_2d8, 0, 0, sub_4dc6a0, sub_4dc6e0, 0, sub_4dc720)',
+		'004dc920    int32_t sub_4dc920(int32_t* arg1, int32_t arg2, int32_t arg3)',
+		'result = sub_4dc730(sub_4d0010(eax, arg3, arg2), arg1, arg3, eax)',
+		'004dc960    void* sub_4dc960(int32_t arg1, int32_t arg2, int32_t arg3, int32_t* arg4)',
+		'return sub_4d0010(arg1, arg2 * arg3, *arg4)',
+		'004dc980    int32_t sub_4dc980(int32_t* arg1)',
+		'sub_4cf320(*arg1)',
+		'004dc9a0    int32_t sub_4dc9a0(int32_t* arg1)',
+		'sub_4fda00(&data_12c5b74, &data_12cdbb0, 0, 0, sub_4dc960, 0, sub_4dc980, 0)',
+		'004dca40    int32_t sub_4dca40()',
+		'sub_4fcde0(&data_12cdbb0)',
+		'004dcad0    int32_t sub_4dcad0(int32_t arg1 @ esi, int32_t* arg2)',
+		'004dcb20    int32_t __convention("regparm") sub_4dcb20(int32_t arg1, int32_t* arg2 @ edi)',
+		'var_c == 0x46464952',
+		'var_c == 0x45564157',
+		'var_8 == 0x20746d66',
+		'004dcc70    int32_t sub_4dcc70(int32_t* arg1, int32_t arg2)',
+		'"%s is not a mono wav file"',
+		'"WAV_Load: %s is not a 16-bit fil',
+		'"WAV_Load: %s is not a 22kHz file',
+	):
+		assert expected in hlil
+
+	for expected in (
+		"SFT_UNKNOWN = 0",
+		"SFT_WAV = 1",
+		"SFT_OGG = 2",
+		"static soundFileType_t S_SoundFileTypeForPath",
+		'if ( !Q_stricmp( dot, ".ogg" ) ) {',
+		'if ( !Q_stricmp( dot, ".wav" ) ) {',
+		"static int S_FindWavChunk( fileHandle_t file, const char *chunk )",
+		"return FS_Read( dest, count, file );",
+		"if ( S_ReadWavBytes( file, name, sizeof( name ) ) != sizeof( name ) ) {",
+		"return ( len + 1 ) & ~1;",
+		"static qboolean S_LoadOggSound",
+		"static qboolean S_LoadWavSound",
+		"static qboolean S_LoadPCMSound",
+	):
+		assert expected in snd_mem
+
+	assert "static void FindNextChunk" not in snd_mem
+	assert "static void FindChunk" not in snd_mem
+	assert "static int S_FindWavChunk" not in snd_dma
+	assert "FGetLittleShort" not in snd_dma
+	assert "FGetLittleLong" not in snd_dma
+
+
+def test_sound_registration_cache_helpers_match_retail_diagnostics_and_reset_path() -> None:
+	aliases = json.loads(ALIASES.read_text(encoding="utf-8"))["quakelive_steam_srp"]
+	function_rows = {
+		row["name"]: row
+		for row in csv.DictReader(FUNCTIONS_CSV.read_text(encoding="utf-8").splitlines())
+	}
+	hlil = QL_STEAM_HLIL.read_text(encoding="utf-8")
+	snd_dma = SND_DMA.read_text(encoding="utf-8")
+
+	find_block = _extract_function_block(snd_dma, "static sfx_t *S_FindName")
+	register_block = _extract_function_block(snd_dma, "sfxHandle_t\tS_RegisterSound")
+	memory_load_block = _extract_function_block(snd_dma, "void S_memoryLoad")
+	begin_block = _extract_function_block(snd_dma, "void S_BeginRegistration( void )")
+	free_oldest_block = _extract_function_block(snd_dma, "void S_FreeOldestSound")
+
+	for alias, (name, ghidra_name, size) in SOUND_REGISTRATION_ALIASES.items():
+		assert aliases[alias] == name
+		assert function_rows[ghidra_name]["size"] == size
+
+	for expected in (
+		"004d9d00    char* sub_4d9d00(char* arg1 @ edi)",
+		'sub_4c9b60(arg1, "S_FindName: NULL")',
+		'sub_4c9b60(0, "S_FindName: empty name")',
+		'sub_4c9b60(0, "S_FindName: name too long: %s")',
+		"sub_4d8990(arg1, 0x80)",
+		"004d9e10    int32_t sub_4d9e10(int32_t* arg1 @ esi)",
+		'char const data_543f98[0x24] = "^3WARNING: couldn\\\'t load sound: %s\\n", 0',
+		"004d9e50    int32_t sub_4d9e50(char* arg1)",
+		'char const data_543fbc[0x2e] = "^3WARNING: could not find %s - using default\\n", 0',
+		"004db320    int32_t* sub_4db320()",
+		'char const data_544350[0x25] = "S_FreeOldestSound: freeing sound %s\\n", 0',
+		"004db3a0    int32_t sub_4db3a0()",
+		'004db3ed  return sub_4d9e50("sound/feedback/hit.wav")',
+	):
+		assert expected in hlil
+
+	for expected in (
+		'Com_Error (ERR_FATAL, "S_FindName: NULL");',
+		'Com_Error (ERR_FATAL, "S_FindName: empty name");',
+		'Com_Error (ERR_FATAL, "S_FindName: name too long: %s", name);',
+		"hash = S_HashSFXName(name);",
+		"if (s_numSfx == MAX_SFX) {",
+		'Com_Error (ERR_FATAL, "S_FindName: out of sfx_t");',
+	):
+		assert expected in find_block
+
+	assert '"Sound name too long: %s"' not in find_block
+	assert '"S_FindName: NULL\\n"' not in find_block
+	assert '"S_FindName: empty name\\n"' not in find_block
+
+	for expected in (
+		"compressed = qfalse;",
+		'Com_Printf( "Sound name exceeds MAX_QPATH\\n" );',
+		"sfx = S_FindName( name );",
+		"S_memoryLoad(sfx);",
+		'Com_Printf( S_COLOR_YELLOW "WARNING: could not find %s - using default\\n", sfx->soundName );',
+		"return sfx - s_knownSfx;",
+	):
+		assert expected in register_block
+
+	assert 'Com_Printf( S_COLOR_YELLOW "WARNING: couldn\'t load sound: %s\\n", sfx->soundName );' in memory_load_block
+	assert "sfx->defaultSound = qtrue;" in memory_load_block
+	assert "sfx->inMemory = qtrue;" in memory_load_block
+	assert "//\t\tCom_Printf( S_COLOR_YELLOW \"WARNING: couldn't load sound" not in memory_load_block
+
+	for expected in (
+		"SND_shutdown();",
+		"SND_setup();",
+		"s_numSfx = 0;",
+		"Com_Memset( s_knownSfx, 0, sizeof( s_knownSfx ) );",
+		"Com_Memset(sfxHash, 0, sizeof(sfx_t *)*LOOP_HASH);",
+		'S_RegisterSound("sound/feedback/hit.wav", qfalse);',
+	):
+		assert expected in begin_block
+
+	for expected in (
+		"oldest = Com_Milliseconds();",
+		"for (i=1 ; i < s_numSfx ; i++) {",
+		'Com_DPrintf("S_FreeOldestSound: freeing sound %s\\n", sfx->soundName);',
+		"SND_free(buffer);",
+		"sfx->inMemory = qfalse;",
+		"sfx->soundData = NULL;",
+	):
+		assert expected in free_oldest_block
 
 
 def test_sound_console_commands_match_retail_registration_and_output_contracts() -> None:
@@ -110,6 +326,7 @@ def test_volume_aware_sound_imports_route_to_engine_helpers() -> None:
 
 
 def test_voice_mixer_reconstructs_retail_lane_shape_and_cvars() -> None:
+	hlil = QL_STEAM_HLIL.read_text(encoding="utf-8")
 	snd_local = SND_LOCAL.read_text(encoding="utf-8")
 	snd_dma = SND_DMA.read_text(encoding="utf-8")
 	snd_mix = SND_MIX.read_text(encoding="utf-8")
@@ -117,6 +334,28 @@ def test_voice_mixer_reconstructs_retail_lane_shape_and_cvars() -> None:
 		snd_dma,
 		"void S_AddVoiceSamples( int clientNum, int samples, const short *data )",
 	)
+
+	for expected in (
+		"004dab00    void sub_4dab00(int32_t arg1, int32_t arg2, int32_t arg3)",
+		"004dab4c      long double x87_r7_2 = float.t(data_142c324) * fconvert.t(0.5)",
+		'004dab84              sub_4c9ab0("client %d: using voice %d\\n")',
+		'004dab97      sub_4c9ab0("client %d silenced: no voices le…")',
+		'004dabed      sub_4c9ab0("voice channel %d: start samples …")',
+		'004dac0a      sub_4c9ab0("voice channel %d: %d samples alr…")',
+		'004dac2b      sub_4c9ab0("voice channel %d: overflow %d vo…")',
+		'004dac41  sub_4c9ab0("voice channel %d: add %d samples…")',
+		'char const data_544158[0x32] = "voice channel %d: add %d samples to voice buffer\\n", 0',
+		'char const data_544190[0x43] = "voice channel %d: overflow %d voice samples with room for only %d\\n", 0',
+		'char const data_5441d4[0x30] = "voice channel %d: %d samples already in buffer\\n", 0',
+		'char const data_544204[0x2c] = "voice channel %d: start samples at time %d\\n", 0',
+		'char const data_544230[0x24] = "client %d silenced: no voices left\\n", 0',
+		'char const data_544254[0x1b] = "client %d: using voice %d\\n", 0',
+		'004dc562                          sub_4c9ab0("voice channel %d: no data in the…")',
+		'004dc507                              sub_4c9ab0("voice channel %d: consumed all b…")',
+		'char const data_544560[0x2f] = "voice channel %d: no data in the paint window\\n", 0',
+		'char const data_544590[0x37] = "voice channel %d: consumed all buffered voice samples\\n", 0',
+	):
+		assert expected in hlil
 
 	assert "#define MAX_VOICE_CHANNELS\t5" in snd_local
 	assert "#define VOICE_BUFFER_SAMPLES\t0x4000" in snd_local
@@ -126,12 +365,23 @@ def test_voice_mixer_reconstructs_retail_lane_shape_and_cvars() -> None:
 	assert 's_pvs = Cvar_GetBounded( "s_pvs", "0", "0", "1", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_CLOUD );' in snd_dma
 	assert 's_voiceStep = Cvar_Get( "s_voiceStep", "0.02", CVAR_ARCHIVE | CVAR_PROTECTED );' in snd_dma
 	assert "Com_Memset( s_voiceChannels, 0, sizeof( s_voiceChannels ) );" in snd_dma
+	assert "s_paintedtime - s_voiceChannels[i].endSample > (int)( dma.samples * 0.5f )" in add_voice_block
+	assert 'Com_DPrintf( "client %d: using voice %d\\n", clientNum, channelIndex );' in add_voice_block
+	assert 'Com_DPrintf( "client %d silenced: no voices left\\n", clientNum );' in add_voice_block
 	assert "if ( voice->endSample <= voice->startSample ) {" in add_voice_block
 	assert "startSample = s_paintedtime + (int)( s_mixPreStep->value * dma.speed );" in add_voice_block
 	assert "startSample += (int)( s_voiceStep->value * dma.speed );" in add_voice_block
+	assert 'Com_DPrintf( "voice channel %d: start samples at time %d\\n", channelIndex, startSample );' in add_voice_block
+	assert 'Com_DPrintf( "voice channel %d: %d samples already in buffer\\n", channelIndex, queuedSamples );' in add_voice_block
+	assert 'Com_DPrintf( "voice channel %d: overflow %d voice samples with room for only %d\\n", channelIndex, samples, room );' in add_voice_block
+	assert 'Com_DPrintf( "voice channel %d: add %d samples to voice buffer\\n", channelIndex, count );' in add_voice_block
 	assert "voice->samples[( voice->endSample + i ) & ( VOICE_BUFFER_SAMPLES - 1 )] = data[i];" in add_voice_block
+	assert "s_voiceChannels[i].endSample <= s_paintedtime" not in add_voice_block
+	assert "s_voiceChannels[i].endSample - s_paintedtime < (int)( dma.speed * 0.5f )" not in add_voice_block
 	assert "voiceScale = (int)( Com_Clamp( 0.0f, 2.0f, s_voiceVolume->value ) * 256.0f );" in snd_mix
 	assert "voice->samples[sampleTime & ( VOICE_BUFFER_SAMPLES - 1 )] * voiceScale" in snd_mix
+	assert 'Com_DPrintf( "voice channel %d: no data in the paint window\\n", voiceIndex );' in snd_mix
+	assert 'Com_DPrintf( "voice channel %d: consumed all buffered voice samples\\n", voiceIndex );' in snd_mix
 	assert "if ( s_pvs && s_pvs->integer && !S_OriginInPVS( listener_origin, origin ) ) {" in snd_dma
 
 
@@ -171,8 +421,8 @@ def test_client_steam_voice_frame_reconstructs_retail_transport_path() -> None:
 	assert "QL_Steamworks_AcceptP2PSession( &event->remoteId )" in session_block
 	assert "qboolean SteamClient_IsInitialized( void ) {" in cl_main
 	assert "static qboolean SteamClient_IsInitialized( void ) {" not in cl_main
-	assert "services = QL_RefreshPlatformServices();" in frame_block
-	assert "SteamClient_SetInitializedState( services );" in frame_block
+	assert "services = QL_RefreshPlatformServices();" not in frame_block
+	assert "SteamClient_SetInitializedState( services );" not in frame_block
 	assert "if ( !SteamClient_IsInitialized() ) {" in frame_block
 	assert "QL_Steamworks_RunCallbacks();" in frame_block
 	assert "CL_Steam_SendVoicePacket();" in frame_block
@@ -234,6 +484,10 @@ def test_sound_cache_and_shutdown_match_retail_allocator_contracts() -> None:
 
 	shutdown_block = _extract_function_block(snd_dma, "void S_Shutdown( void )")
 	begin_block = _extract_function_block(snd_dma, "void S_BeginRegistration( void )")
+	file_block = _extract_function_block(snd_mem, "static qboolean S_OpenSoundFile")
+	pcm_block = _extract_function_block(snd_mem, "static qboolean S_LoadPCMSound")
+	ogg_block = _extract_function_block(snd_mem, "static qboolean S_LoadOggSound")
+	wav_block = _extract_function_block(snd_mem, "static qboolean S_LoadWavSound")
 	load_block = _extract_function_block(snd_mem, "qboolean S_LoadSound( sfx_t *sfx )")
 
 	assert '#define DEF_COMSOUNDMEGS "16"' in snd_mem
@@ -251,44 +505,185 @@ def test_sound_cache_and_shutdown_match_retail_allocator_contracts() -> None:
 	assert "SND_shutdown();" in begin_block
 	assert "SND_setup();" in begin_block
 	assert 'if (s_numSfx == 0)' not in begin_block
-	assert 'COM_DefaultExtension( resolvedName, resolvedNameSize, ".ogg" );' in snd_mem
-	assert 'if ( !S_LoadSoundFile( sfx->soundName, loadName, sizeof( loadName ), &data, &size ) ) {' in load_block
-	assert 'isOgg = S_IsOggSound( loadName, data, size );' in load_block
+	assert 'COM_DefaultExtension( resolvedName, resolvedNameSize, ".ogg" );' in file_block
+	assert "*fileType = S_SoundFileTypeForPath( name );" in file_block
+	assert "*outSize = FS_FOpenFileRead( resolvedName, file, qtrue );" in file_block
+	assert "*fileType = SFT_OGG;" in file_block
+	assert "FS_ReadFile" not in file_block
+	assert 'if ( !S_OpenSoundFile( sfx->soundName, loadName, sizeof( loadName ), &file, &size, &fileType ) ) {' in load_block
+	assert "switch ( fileType ) {" in load_block
+	assert "case SFT_WAV:" in load_block
+	assert "result = S_LoadWavSound( sfx, loadName, file );" in load_block
+	assert "case SFT_OGG:" in load_block
+	assert "result = S_LoadOggSound( sfx, loadName, file, size );" in load_block
+	assert "FS_FCloseFile( file );" in load_block
+	assert "sfx->lastTimeUsed = Com_Milliseconds();" in load_block
+	assert "FS_FreeFile( data );" not in load_block
+	assert "sfx->lastTimeUsed = Com_Milliseconds()+1;" not in snd_mem
+	assert "data = Hunk_AllocateTempMemory( size );" in ogg_block
+	assert "if ( FS_Read( data, size, file ) != size ) {" in ogg_block
+	assert "S_VorbisDecodeMemory( loadName, data, size, &info, &oggPcm )" in ogg_block
+	assert "result = S_LoadPCMSound( sfx, loadName, &info, (byte *)oggPcm );" in ogg_block
+	assert "Hunk_FreeTempMemory( oggPcm );" in ogg_block
+	assert "Hunk_FreeTempMemory( data );" in ogg_block
+	assert "dataLength = GetWavinfo( file, &info );" in wav_block
+	assert 'Com_Error( ERR_DROP, "%s is not a mono wav file", loadName );' in wav_block
+	assert "data = Hunk_AllocateTempMemory( dataLength );" in wav_block
+	assert "if ( FS_Read( data, dataLength, file ) != dataLength ) {" in wav_block
+	assert "result = S_LoadPCMSound( sfx, loadName, &info, data );" in wav_block
+	assert "Hunk_FreeTempMemory( data );" in wav_block
+	assert 'Com_DPrintf( "WAV_Load: %s is not a 16-bit file\\n", loadName );' in pcm_block
+	assert 'Com_DPrintf( "WAV_Load: %s is not a 22kHz file\\n", loadName );' in pcm_block
+	assert "lastTimeUsed" not in pcm_block
+	assert 'Com_Printf ("%s is a stereo wav file\\n", loadName);' not in wav_block
+	assert 'WARNING: %s is a 8 bit wav file' not in pcm_block
+	assert 'WARNING: %s is not a 22kHz wav file' not in pcm_block
 
 
 def test_background_track_ogg_update_matches_retail_restart_path() -> None:
+	aliases = json.loads(ALIASES.read_text(encoding="utf-8"))["quakelive_steam_srp"]
+	function_rows = {
+		row["name"]: row
+		for row in csv.DictReader(FUNCTIONS_CSV.read_text(encoding="utf-8").splitlines())
+	}
+	hlil = QL_STEAM_HLIL.read_text(encoding="utf-8")
 	snd_dma = SND_DMA.read_text(encoding="utf-8")
 
+	has_ogg_block = _extract_function_block(
+		snd_dma,
+		"static qboolean S_BackgroundTrackHasOggExtension",
+	)
+	set_path_block = _extract_function_block(
+		snd_dma,
+		"static void S_SetOggTrackPath",
+	)
+	stop_block = _extract_function_block(snd_dma, "void S_StopBackgroundTrack( void )")
+	start_block = _extract_function_block(snd_dma, "void S_StartBackgroundTrack")
 	update_helper = _extract_function_block(
 		snd_dma,
 		"static int S_OggUpdateBackgroundTrack( byte *buffer, int bytesToRead )",
 	)
 	update_block = _extract_function_block(snd_dma, "void S_UpdateBackgroundTrack( void )")
 
+	for alias, (name, ghidra_name, size) in SOUND_BACKGROUND_ALIASES.items():
+		assert aliases[alias] == name
+		assert function_rows[ghidra_name]["size"] == size
+
+	for expected in (
+		"004db030    void sub_4db030()",
+		"004db060    int32_t sub_4db060(char* arg1, char* arg2)",
+		'004db0a0      sub_4c9ab0("S_StartBackgroundTrack( %s, %s )…")',
+		'char const data_5442f0[0x39] = "S_StartBackgroundTrack: %s should have an OGG extension\\n", 0',
+		"004db0dd          sub_4d8a40(__saved_ebx_3, &data_12608d0, 0x40)",
+		'004db0ee          sub_4d9a60(&data_12608d0, 0x40, ".ogg")',
+		"004db1c0    int32_t sub_4db1c0()",
+		"sub_4dca50(&var_7538, esi_3)",
+		"004db2c1                      result = sub_4dca40()",
+		"004db2e3                      result = sub_4db060(var_18_3, var_14_3)",
+	):
+		assert expected in hlil
+
+	assert "extension = Q_strrchr( path, '.' );" in has_ogg_block
+	assert 'return ( extension && !Q_stricmp( extension, ".ogg" ) );' in has_ogg_block
+
+	for expected in (
+		"if ( S_BackgroundTrackHasOggExtension( source ) ) {",
+		"Q_strncpyz( dest, source, destSize );",
+		"COM_StripExtension( source, stripped );",
+		'COM_DefaultExtension( dest, destSize, ".ogg" );',
+	):
+		assert expected in set_path_block
+
+	for expected in (
+		"if ( s_backgroundFile ) {",
+		"S_OggStreamClose( &s_backgroundOgg );",
+		"s_backgroundIsOgg = qfalse;",
+		"s_rawend = 0;",
+	):
+		assert expected in stop_block
+
+	for expected in (
+		"if ( !intro || !intro[0] ) {",
+		"if ( !loop || !loop[0] ) {",
+		'Com_DPrintf( "S_StartBackgroundTrack( %s, %s )\\n", intro, loop );',
+		"if ( !S_BackgroundTrackHasOggExtension( intro ) ) {",
+		'Com_DPrintf( "S_StartBackgroundTrack: %s should have an OGG extension\\n", intro );',
+		"S_SetOggTrackPath( loop, s_backgroundLoop, sizeof( s_backgroundLoop ) );",
+		"S_SetOggTrackPath( intro, introPath, sizeof( introPath ) );",
+		"if ( S_OggStreamActive( &s_backgroundOgg ) ) {",
+		"if ( !S_OpenBackgroundOgg( introPath ) ) {",
+		'Com_Printf( S_COLOR_YELLOW "WARNING: couldn\'t open music file %s\\n", introPath );',
+	):
+		assert expected in start_block
+
 	assert 'result = S_OggStreamRead( &s_backgroundOgg, buffer, bytesToRead );' in update_helper
 	assert 'Com_Printf( S_COLOR_YELLOW "OGG_UpdateBackgroundTrack: %i\\n", result );' in update_helper
 	assert "S_OggStreamClose( &s_backgroundOgg );" in update_helper
 	assert "return 0;" in update_helper
+	assert "if ( !S_OggStreamActive( &s_backgroundOgg ) ) {" in update_block
 	assert "r = S_OggUpdateBackgroundTrack( raw, fileBytes );" in update_block
-	assert "if ( r < fileBytes ) {" in update_block
+	assert "S_RawSamples( fileSamples, s_backgroundInfo.rate," in update_block
+	assert "if ( r < fileBytes || fileBytes == 0 ) {" in update_block
 	assert "s_backgroundIsOgg = qfalse;" in update_block
 	assert "if ( !S_BackgroundTrackLoop() ) {" in update_block
 	assert "S_StopBackgroundTrack();" in update_block
+	assert "S_OpenBackgroundWav" not in snd_dma
+	assert "S_ResolveMusicFile" not in snd_dma
+	assert "S_FileExists" not in snd_dma
+	assert "S_SetTrackExtension" not in snd_dma
+	assert "S_FindWavChunk" not in snd_dma
+	assert "FGetLittleShort" not in snd_dma
+	assert "FGetLittleLong" not in snd_dma
+	assert "falling back to WAV" not in snd_dma
+	assert "StreamedRead failure on music track" not in snd_dma
+	assert "S_ByteSwapRawSamples" not in snd_dma
+	assert "s_backgroundSamples" not in snd_dma
+	assert 'COM_DefaultExtension( candidate, sizeof( candidate ), ".wav" );' not in snd_dma
 
 
 def test_vorbis_memory_decode_matches_retail_mono_contract() -> None:
 	snd_ogg_decode = SND_OGG_DECODE.read_text(encoding="utf-8")
+	snd_ogg_stream = SND_OGG_STREAM.read_text(encoding="utf-8")
 	enabled_block = snd_ogg_decode.rsplit("#else", 1)[0]
+	read_block = _extract_function_block(
+		enabled_block,
+		"static size_t S_VorbisBufferRead",
+	)
+	seek_block = _extract_function_block(
+		enabled_block,
+		"static int S_VorbisBufferSeek",
+	)
+	tell_block = _extract_function_block(
+		enabled_block,
+		"static long S_VorbisBufferTell",
+	)
 	decode_block = _extract_function_block(
 		enabled_block,
 		"qboolean S_VorbisDecodeMemory( const char *name, const byte *data, int length, wavinfo_t *info, short **outPcm )",
 	)
+	stream_read_block = _extract_function_block(
+		snd_ogg_stream,
+		"static size_t S_OggReadCallback",
+	)
 
 	assert "static int S_VorbisBufferClose" not in snd_ogg_decode
 	assert "callbacks.close_func = S_VorbisBufferClose;" not in snd_ogg_decode
+	assert "requested = size * nmemb;" in read_block
+	assert "available = buffer->length - buffer->position;" in read_block
+	assert "Com_Memcpy( ptr, buffer->data + buffer->position, count );" in read_block
+	assert "buffer->position += (int)count;" in read_block
+	assert "return count;" in read_block
+	assert "return count / size;" not in read_block
+	assert "target = (int)offset;" in seek_block
+	assert "target = buffer->position + (int)offset;" in seek_block
+	assert "target = buffer->length + (int)offset;" in seek_block
+	assert "return buffer->position;" in tell_block
+	assert "return (size_t)bytesRead;" in stream_read_block
+	assert "bytesRead / (int)size" not in stream_read_block
 	assert "if ( channels != 1 ) {" in decode_block
-	assert 'Com_Printf( "%s is not a mono file\\n", name ? name : "<unnamed>" );' in decode_block
+	assert 'Com_Error( ERR_DROP, "%s is not a mono file", name ? name : "<unnamed>" );' in decode_block
 	assert 'Com_Printf( S_COLOR_YELLOW "OGG_Decode: %s: %i\\n", name ? name : "<unnamed>", bytesRead );' in decode_block
+	assert 'Com_Printf( "%s is not a mono file\\n", name ? name : "<unnamed>" );' not in decode_block
 	assert "channels > 2" not in decode_block
 	assert "stereo Vorbis file and was downmixed to mono" not in snd_ogg_decode
 	assert "chunkSamples" not in decode_block

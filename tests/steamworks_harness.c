@@ -246,6 +246,8 @@ typedef struct {
 	int steam_game_server_game_tags_calls;
 	int steam_game_server_user_data_calls;
 	uint64_t steam_game_server_id_value;
+	uint64_t steam_game_server_unauthenticated_user_id_value;
+	int steam_game_server_unauthenticated_user_calls;
 	uint64_t steam_game_server_last_user_data_id;
 	uint32_t steam_game_server_public_ip;
 	uint32_t steam_game_server_last_user_data_score;
@@ -606,6 +608,8 @@ static qlr_steamworks_mock_state_t qlr_mock_state = {
 	.steam_game_server_game_tags_calls = 0,
 	.steam_game_server_user_data_calls = 0,
 	.steam_game_server_id_value = 0x0123456789ABCDEFULL,
+	.steam_game_server_unauthenticated_user_id_value = 0x0011223344556677ULL,
+	.steam_game_server_unauthenticated_user_calls = 0,
 	.steam_game_server_last_user_data_id = 0ULL,
 	.steam_game_server_public_ip = 0x01020304,
 	.steam_game_server_last_user_data_score = 0u,
@@ -1102,6 +1106,8 @@ QLR_EXPORT void QLR_SteamworksMock_Reset( void ) {
 	qlr_mock_state.steam_game_server_game_tags_calls = 0;
 	qlr_mock_state.steam_game_server_user_data_calls = 0;
 	qlr_mock_state.steam_game_server_id_value = 0x0123456789ABCDEFULL;
+	qlr_mock_state.steam_game_server_unauthenticated_user_id_value = 0x0011223344556677ULL;
+	qlr_mock_state.steam_game_server_unauthenticated_user_calls = 0;
 	qlr_mock_state.steam_game_server_last_user_data_id = 0ULL;
 	qlr_mock_state.steam_game_server_public_ip = 0x01020304;
 	qlr_mock_state.steam_game_server_last_user_data_score = 0u;
@@ -1615,6 +1621,15 @@ QLR_SteamworksMock_SetSteamGameServerId
 */
 QLR_EXPORT void QLR_SteamworksMock_SetSteamGameServerId( uint64_t steamId ) {
 	qlr_mock_state.steam_game_server_id_value = steamId;
+}
+
+/*
+=============
+QLR_SteamworksMock_SetSteamGameServerUnauthenticatedUserId
+=============
+*/
+QLR_EXPORT void QLR_SteamworksMock_SetSteamGameServerUnauthenticatedUserId( uint64_t steamId ) {
+	qlr_mock_state.steam_game_server_unauthenticated_user_id_value = steamId;
 }
 
 /*
@@ -2596,6 +2611,15 @@ QLR_SteamworksMock_GetSteamGameServerLastUserDataId
 */
 QLR_EXPORT uint64_t QLR_SteamworksMock_GetSteamGameServerLastUserDataId( void ) {
 	return qlr_mock_state.steam_game_server_last_user_data_id;
+}
+
+/*
+=============
+QLR_SteamworksMock_GetSteamGameServerUnauthenticatedUserCalls
+=============
+*/
+QLR_EXPORT int QLR_SteamworksMock_GetSteamGameServerUnauthenticatedUserCalls( void ) {
+	return qlr_mock_state.steam_game_server_unauthenticated_user_calls;
 }
 
 /*
@@ -4455,6 +4479,24 @@ static CSteamID *QLR_FASTCALL QLR_SteamGameServer_GetSteamID( void *self, void *
 
 	if ( outSteamId ) {
 		outSteamId->value = qlr_mock_state.steam_game_server_id_value;
+	}
+
+	return outSteamId;
+}
+
+/*
+=============
+QLR_SteamGameServer_CreateUnauthenticatedUserConnection
+=============
+*/
+static CSteamID *QLR_FASTCALL QLR_SteamGameServer_CreateUnauthenticatedUserConnection( void *self, void *unused, CSteamID *outSteamId ) {
+	(void)self;
+	(void)unused;
+
+	qlr_mock_state.steam_game_server_unauthenticated_user_calls++;
+
+	if ( outSteamId ) {
+		outSteamId->value = qlr_mock_state.steam_game_server_unauthenticated_user_id_value;
 	}
 
 	return outSteamId;
@@ -6467,6 +6509,7 @@ void *QLR_SteamAPI_SteamGameServer( void ) {
 	vtable[0x40 / 4] = QLR_SteamGameServer_SetPasswordProtected;
 	vtable[0x54 / 4] = QLR_SteamGameServer_SetGameTags;
 	vtable[0x50 / 4] = QLR_SteamGameServer_SetKeyValue;
+	vtable[0x64 / 4] = QLR_SteamGameServer_CreateUnauthenticatedUserConnection;
 	vtable[0x6c / 4] = QLR_SteamGameServer_UpdateUserData;
 	vtable[0x90 / 4] = QLR_SteamGameServer_GetPublicIP;
 	vtable[0x94 / 4] = QLR_SteamGameServer_HandleIncomingPacket;
@@ -8863,6 +8906,15 @@ QLR_EXPORT qboolean QLR_Steamworks_ServerGetSteamID( uint32_t *outIdLow, uint32_
 
 /*
 =============
+QLR_Steamworks_ServerCreateUnauthenticatedUserConnection
+=============
+*/
+QLR_EXPORT qboolean QLR_Steamworks_ServerCreateUnauthenticatedUserConnection( uint32_t *outIdLow, uint32_t *outIdHigh ) {
+	return QL_Steamworks_ServerCreateUnauthenticatedUserConnection( outIdLow, outIdHigh );
+}
+
+/*
+=============
 QLR_Steamworks_ServerSetGameTags
 =============
 */
@@ -10480,6 +10532,21 @@ QLR_Steamworks_ServerGetSteamID
 =============
 */
 QLR_EXPORT qboolean QLR_Steamworks_ServerGetSteamID( uint32_t *outIdLow, uint32_t *outIdHigh ) {
+	if ( outIdLow ) {
+		*outIdLow = 0u;
+	}
+	if ( outIdHigh ) {
+		*outIdHigh = 0u;
+	}
+	return qfalse;
+}
+
+/*
+=============
+QLR_Steamworks_ServerCreateUnauthenticatedUserConnection
+=============
+*/
+QLR_EXPORT qboolean QLR_Steamworks_ServerCreateUnauthenticatedUserConnection( uint32_t *outIdLow, uint32_t *outIdHigh ) {
 	if ( outIdLow ) {
 		*outIdLow = 0u;
 	}

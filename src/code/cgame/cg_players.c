@@ -62,7 +62,7 @@ sfxHandle_t	CG_CustomSound( int clientNum, const char *soundName ) {
 	}
 
 	if ( clientNum < 0 || clientNum >= MAX_CLIENTS ) {
-		CG_Error( "CG_CustomSound: invalid client %d", clientNum );
+		CG_Error( "CG_CustomSound: invalid client %i", clientNum );
 	}
 	ci = &cgs.clientinfo[ clientNum ];
 

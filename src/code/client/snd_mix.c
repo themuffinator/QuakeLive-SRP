@@ -632,10 +632,14 @@ void S_PaintChannels( int endtime ) {
 					voiceEnd = end;
 				}
 				if ( voiceStart >= voiceEnd ) {
+					Com_DPrintf( "voice channel %d: no data in the paint window\n", voiceIndex );
 					if ( end > voice->startSample ) {
 						voice->startSample = end;
 						if ( voice->startSample > voice->endSample ) {
 							voice->startSample = voice->endSample;
+						}
+						if ( voice->startSample >= voice->endSample ) {
+							Com_DPrintf( "voice channel %d: consumed all buffered voice samples\n", voiceIndex );
 						}
 					}
 					continue;
@@ -654,6 +658,9 @@ void S_PaintChannels( int endtime ) {
 					voice->startSample = end;
 					if ( voice->startSample > voice->endSample ) {
 						voice->startSample = voice->endSample;
+					}
+					if ( voice->startSample >= voice->endSample ) {
+						Com_DPrintf( "voice channel %d: consumed all buffered voice samples\n", voiceIndex );
 					}
 				}
 			}

@@ -4048,7 +4048,7 @@ static void Com_InitSteamClientForFilesystem( void ) {
 		return;
 	}
 
-	QL_RefreshPlatformServices();
+	SteamClient_InitForFilesystem();
 #endif
 }
 

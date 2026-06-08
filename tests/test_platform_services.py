@@ -1334,12 +1334,13 @@ def test_client_steam_callback_owner_reconstructs_retail_frame_pump_and_lifecycl
     common_frame_block = _extract_function_block(common, "void Com_Frame( void )")
     steam_frame_block = _extract_function_block(cl_main, "void SteamClient_Frame( void )")
     steam_is_initialized_block = _extract_function_block(cl_main, "qboolean SteamClient_IsInitialized( void ) {")
+    lazy_refresh_gate_block = _extract_function_block(cl_main, "static qboolean SteamClient_ShouldRefreshPlatformServices( void ) {")
     init_block = _extract_function_block(cl_main, "void CL_Init( void ) {")
     shutdown_block = _extract_function_block(cl_main, "void CL_Shutdown( void ) {")
     steam_callbacks_init_block = _extract_function_block(cl_main, "static qboolean SteamCallbacks_Init( void ) {")
     steam_micro_callbacks_init_block = _extract_function_block(cl_main, "static qboolean SteamMicroCallbacks_Init( void ) {")
     steam_lobby_callbacks_init_block = _extract_function_block(cl_main, "static qboolean SteamLobbyCallbacks_Init( void ) {")
-    steam_lobby_init_block = _extract_function_block(cl_main, "static qboolean SteamLobby_Init( void ) {")
+    steam_lobby_init_block = _extract_function_block(cl_main, "static void SteamLobby_Init( void ) {")
     workshop_callback_init_block = _extract_function_block(
         cl_main, "static qboolean CL_Steam_RegisterWorkshopCallbacks( const char *workshopProvider, const char *workshopPolicy ) {"
     )
@@ -1359,11 +1360,14 @@ def test_client_steam_callback_owner_reconstructs_retail_frame_pump_and_lifecycl
     assert common_frame_block.index("SteamClient_Frame();") < common_frame_block.index("CL_Frame( msec );")
     assert "static qboolean cl_steamClientInitialized;" in cl_main
     assert "return cl_steamClientInitialized ? qtrue : qfalse;" in steam_is_initialized_block
+    assert "com_buildScript && com_buildScript->integer" in lazy_refresh_gate_block
+    assert 'Cvar_VariableIntegerValue( "com_build" )' in lazy_refresh_gate_block
     assert "qboolean SteamClient_IsInitialized( void );" in (REPO_ROOT / "src/code/qcommon/qcommon.h").read_text(encoding="utf-8")
     assert "CL_Steam_ProcessStatsReportPackets();" in steam_frame_block
-    assert "services = QL_RefreshPlatformServices();" in steam_frame_block
-    assert "SteamClient_SetInitializedState( services );" in steam_frame_block
     assert "if ( !SteamClient_IsInitialized() ) {" in steam_frame_block
+    assert "QL_RefreshPlatformServices();" not in steam_frame_block
+    assert "SteamClient_SetInitializedState( services );" not in steam_frame_block
+    assert steam_frame_block.index("if ( !SteamClient_IsInitialized() ) {") < steam_frame_block.index("QL_Steamworks_RunCallbacks();")
     assert "SteamClient_RecoverCallbackBootstrap();" in steam_frame_block
     assert "00461d5c  if (data_e30218 != 0)" in hlil_part02
     assert "00461d63      SteamAPI_RunCallbacks()" in hlil_part02
@@ -1470,16 +1474,25 @@ def test_client_steam_callback_owner_reconstructs_retail_frame_pump_and_lifecycl
     assert steam_client_init_block.index("if ( com_buildScript && com_buildScript->integer ) {") < steam_client_init_block.index("SteamClient_CancelAuthTicket();")
     assert steam_client_init_block.index("if ( com_buildScript && com_buildScript->integer ) {") < steam_client_init_block.index("services = QL_RefreshPlatformServices();")
     assert 'CL_LogClientCallbackBootstrapFallback( "com_build active; skipping Steam bootstrap" );' in steam_client_init_block
-    assert "services = QL_RefreshPlatformServices();" in callback_recovery_block
-    assert "CL_RefreshPlatformServiceCvars();" in callback_recovery_block
-    assert "SteamClient_SetInitializedState( services );" in callback_recovery_block
+    assert "if ( !SteamClient_ShouldRefreshPlatformServices() ) {" in callback_recovery_block
+    assert "services = QL_RefreshPlatformServices();" not in callback_recovery_block
+    assert "CL_RefreshPlatformServiceCvars();" not in callback_recovery_block
+    assert "SteamClient_SetInitializedState( services );" not in callback_recovery_block
     assert "if ( !SteamClient_IsInitialized() ) {" in callback_recovery_block
+    assert callback_recovery_block.index("if ( !SteamClient_IsInitialized() ) {") < callback_recovery_block.index("clientCallbacksRegistered = SteamCallbacks_Init();")
+    assert callback_recovery_block.index("if ( !SteamClient_IsInitialized() ) {") < callback_recovery_block.index("if ( !SteamClient_ShouldRefreshPlatformServices() ) {")
+    assert callback_recovery_block.index("if ( !SteamClient_ShouldRefreshPlatformServices() ) {") < callback_recovery_block.index("clientCallbacksRegistered = SteamCallbacks_Init();")
     assert "clientCallbacksRegistered = SteamCallbacks_Init();" in callback_recovery_block
     assert "microCallbacksRegistered = clientCallbacksRegistered ? SteamMicroCallbacks_Init() : qfalse;" in callback_recovery_block
     assert "lobbyCallbacksRegistered = SteamLobbyCallbacks_Init();" in callback_recovery_block
     assert 'CL_LogClientCallbackBootstrapFallback( "callback recovery failed; keeping compatibility-only browser event fallback" );' in callback_recovery_block
     assert "CL_Steam_SetMainMenuRichPresence();" in callback_recovery_block
-    assert "callbacksRegistered = SteamLobbyCallbacks_Init();" in steam_lobby_init_block
+    assert "SteamLobbyCallbacks_Init();" in steam_lobby_init_block
+    assert "callbacksRegistered" not in steam_lobby_init_block
+    assert "return callbacksRegistered;" not in steam_lobby_init_block
+    assert "lobbyCallbacksRegistered = SteamLobby_Init();" not in steam_client_init_block
+    assert "if ( !clientCallbacksRegistered || !microCallbacksRegistered ) {" in steam_client_init_block
+    assert "!lobbyCallbacksRegistered" not in steam_client_init_block
 
     assert "QL_Steamworks_UnregisterWorkshopCallbacks();" in callback_shutdown_block
     assert "QL_Steamworks_UnregisterMicroCallbacks();" in callback_shutdown_block
@@ -1502,6 +1515,7 @@ def test_client_steam_id_owner_reconstructs_retail_homepath_and_identity_gate() 
     cl_main = (REPO_ROOT / "src/code/client/cl_main.c").read_text(encoding="utf-8")
     cl_cgame = (REPO_ROOT / "src/code/client/cl_cgame.c").read_text(encoding="utf-8")
     ql_auth = (REPO_ROOT / "src/code/client/ql_auth.c").read_text(encoding="utf-8")
+    common = (REPO_ROOT / "src/code/qcommon/common.c").read_text(encoding="utf-8")
     files = (REPO_ROOT / "src/code/qcommon/files.c").read_text(encoding="utf-8")
     qcommon_h = (REPO_ROOT / "src/code/qcommon/qcommon.h").read_text(encoding="utf-8")
     null_client = (REPO_ROOT / "src/code/null/null_client.c").read_text(encoding="utf-8")
@@ -1516,7 +1530,12 @@ def test_client_steam_id_owner_reconstructs_retail_homepath_and_identity_gate() 
     ).read_text(encoding="utf-8")
 
     steam_id_block = _extract_function_block(cl_main, "unsigned long long SteamClient_GetSteamID( void ) {")
+    steam_filesystem_init_block = _extract_function_block(cl_main, "qboolean SteamClient_InitForFilesystem( void ) {")
+    common_filesystem_init_block = _extract_function_block(common, "static void Com_InitSteamClientForFilesystem( void ) {")
     homepath_block = _extract_function_block(files, "static const char *FS_ResolveHomePath( const char *basePath ) {")
+    null_filesystem_init_block = _extract_function_block(
+        null_client, "qboolean SteamClient_InitForFilesystem( void ) {"
+    )
     null_steam_id_block = _extract_function_block(
         null_client, "unsigned long long SteamClient_GetSteamID( void ) {"
     )
@@ -1539,15 +1558,25 @@ def test_client_steam_id_owner_reconstructs_retail_homepath_and_identity_gate() 
     assert 'eax_7 = sub_4d9220("%s/%llu")' in hlil_part04
 
     assert "unsigned long long SteamClient_GetSteamID( void );" in qcommon_h
+    assert "qboolean SteamClient_InitForFilesystem( void );" in qcommon_h
+    assert "SteamClient_InitForFilesystem();" in common_filesystem_init_block
+    assert "QL_RefreshPlatformServices();" not in common_filesystem_init_block
+    assert "if ( !CL_SteamServicesEnabled() ) {" in steam_filesystem_init_block
+    assert "if ( !SteamClient_ShouldRefreshPlatformServices() ) {" in steam_filesystem_init_block
+    assert "services = QL_RefreshPlatformServices();" in steam_filesystem_init_block
+    assert "SteamClient_SetInitializedState( services );" in steam_filesystem_init_block
+    assert "return SteamClient_IsInitialized();" in steam_filesystem_init_block
     assert "if ( !SteamClient_IsInitialized() ) {" in steam_id_block
-    assert "services = QL_RefreshPlatformServices();" in steam_id_block
-    assert "SteamClient_SetInitializedState( services );" in steam_id_block
+    assert "SteamClient_ShouldRefreshPlatformServices()" not in steam_id_block
+    assert "QL_RefreshPlatformServices();" not in steam_id_block
+    assert "SteamClient_SetInitializedState( services );" not in steam_id_block
     assert "return 0ull;" in steam_id_block
     assert "QL_Steamworks_GetUserSteamID( &steamIdLow, &steamIdHigh )" in steam_id_block
     assert "return ( (unsigned long long)steamIdHigh << 32 ) | steamIdLow;" in steam_id_block
     assert "steamId = SteamClient_GetSteamID();" in homepath_block
     assert "QL_Steamworks_GetUserSteamID" not in homepath_block
     assert 'Com_sprintf( steamHome, sizeof( steamHome ), "%s/%llu", basePath, (unsigned long long)steamId );' in homepath_block
+    assert "return qfalse;" in null_filesystem_init_block
     assert "return 0ull;" in null_steam_id_block
     assert "return ( (unsigned long long)steamIdHigh << 32 ) | steamIdLow;" in harness_steam_id_block
     assert "return SteamClient_GetSteamID() != 0ull ? qtrue : qfalse;" in web_identity_block
@@ -2101,6 +2130,10 @@ def test_client_auth_ticket_lifetime_reconstructs_retail_disconnect_owner() -> N
     assert "if ( ticketHandle == 0 || !state.initialised || !state.SteamUser || !state.CancelAuthTicket ) {" in cancel_platform_block
     assert "state.CancelAuthTicket( user, (HAuthTicket)ticketHandle );" in cancel_platform_block
     assert "static uint32_t cl_steamAuthTicketHandle;" in cl_main
+    assert "if ( !SteamClient_IsInitialized() ) {" in steam_ticket_block
+    assert "SteamClient_ShouldRefreshPlatformServices()" not in steam_ticket_block
+    assert "QL_RefreshPlatformServices();" not in steam_ticket_block
+    assert "SteamClient_SetInitializedState( services );" not in steam_ticket_block
     assert "QL_Steamworks_RequestAuthTicket( ticketBuffer, (size_t)ticketBufferSize, &ticketLength, &ticketHandle )" in steam_ticket_block
     assert "QL_Steamworks_CancelAuthTicket( cl_steamAuthTicketHandle );" in steam_ticket_block
     assert "cl_steamAuthTicketHandle = ticketHandle;" in steam_ticket_block
@@ -2139,8 +2172,12 @@ def test_client_steam_api_shutdown_wrapper_reconstructs_retail_quit_thunk() -> N
     common_c = (REPO_ROOT / "src/code/qcommon/common.c").read_text(encoding="utf-8")
     null_client = (REPO_ROOT / "src/code/null/null_client.c").read_text(encoding="utf-8")
     cl_main = (REPO_ROOT / "src/code/client/cl_main.c").read_text(encoding="utf-8")
+    steam_resources = (REPO_ROOT / "src/code/client/cl_steam_resources.c").read_text(encoding="utf-8")
 
     steam_shutdown_block = _extract_function_block(cl_main, "void SteamAPI_Shutdown( void ) {")
+    resources_shutdown_block = _extract_function_block(
+        steam_resources, "void CL_ShutdownSteamResources( void ) {"
+    )
     quit_block = _extract_function_block(common_c, "void Com_Quit_f( void ) {")
     common_shutdown_block = _extract_function_block(common_c, "void Com_Shutdown (void) {")
 
@@ -2149,11 +2186,18 @@ def test_client_steam_api_shutdown_wrapper_reconstructs_retail_quit_thunk() -> N
     assert "STEAM_API.DLL!SteamAPI_Shutdown" in imports_txt
     assert "00460540    int32_t SteamAPI_Shutdown()" in hlil_part02
     assert "return SteamAPI_Shutdown() __tailcall" in hlil_part02
+    assert "00464440    int32_t __fastcall sub_464440" in hlil_part02
+    assert "SteamAPI_UnregisterCallback(&arg1[0xb]" in hlil_part02
     assert "004c9e97  SteamAPI_Shutdown()" in hlil_part04
     assert "void SteamAPI_Shutdown( void );" in qcommon_h
     assert "void SteamAPI_Shutdown( void ) {" in null_client
+    assert "CL_ShutdownSteamResources();" in steam_shutdown_block
     assert "CL_Steam_ShutdownCallbacks();" in steam_shutdown_block
     assert "QL_Steamworks_Shutdown();" in steam_shutdown_block
+    assert steam_shutdown_block.index("CL_ShutdownSteamResources();") < steam_shutdown_block.index("CL_Steam_ShutdownCallbacks();")
+    assert steam_shutdown_block.index("CL_Steam_ShutdownCallbacks();") < steam_shutdown_block.index("QL_Steamworks_Shutdown();")
+    assert "CL_SteamResources_UnregisterAvatarCallbacks();" in resources_shutdown_block
+    assert "CL_ClearSteamResourceCache( qfalse );" in resources_shutdown_block
     assert "SteamAPI_Shutdown();" in quit_block
     assert "QL_Steamworks_ServerShutdown();" in quit_block
     assert "QL_Steamworks_ServerShutdown();" in common_shutdown_block
@@ -2200,6 +2244,8 @@ def test_client_steam_startup_initialized_guard_reconstructs_retail_common_check
     assert '004cc5fd      if (sub_460510() == 0 && sub_4ccd80("com_build") == 0 && sub_4ccd80("dedicated") == 0)' in hlil_part04
     assert 'sub_4ec6e0("Failed to initialize Steam.")' in hlil_part04
     assert "qboolean SteamClient_IsInitialized( void );" in qcommon_h
+    assert "qboolean SteamClient_InitForFilesystem( void );" in qcommon_h
+    assert "qboolean SteamClient_InitForFilesystem( void );" in stubs_client_h
     assert "qboolean SteamClient_IsInitialized( void );" in stubs_client_h
     assert "static qboolean SteamClient_IsInitialized" not in cl_main
     assert "return cl_steamClientInitialized ? qtrue : qfalse;" in initialized_block
@@ -2212,7 +2258,8 @@ def test_client_steam_startup_initialized_guard_reconstructs_retail_common_check
     assert "QL_GetOnlineServicesPolicyLabel()" in startup_guard_block
     assert 'Cvar_VariableIntegerValue( "dedicated" )' in filesystem_bootstrap_block
     assert 'Cvar_VariableIntegerValue( "com_build" )' in filesystem_bootstrap_block
-    assert filesystem_bootstrap_block.index('Cvar_VariableIntegerValue( "com_build" )') < filesystem_bootstrap_block.index("QL_RefreshPlatformServices();")
+    assert filesystem_bootstrap_block.index('Cvar_VariableIntegerValue( "com_build" )') < filesystem_bootstrap_block.index("SteamClient_InitForFilesystem();")
+    assert "QL_RefreshPlatformServices();" not in filesystem_bootstrap_block
     assert "Com_VerifySteamClientStartup();" in common_init_block
     assert common_init_block.index("SteamClient_Init();") < common_init_block.index("CL_Init();")
     assert common_init_block.index("CL_Init();") < common_init_block.index("Com_VerifySteamClientStartup();")
@@ -2277,11 +2324,20 @@ def test_client_steam_wrapper_cluster_reconstructs_retail_subscription_workshop_
     assert "qboolean SteamApps_BIsSubscribedApp( unsigned int appId ) {" in null_client
     assert "qboolean SteamUGC_GetItemDownloadInfo( unsigned int itemIdLow, unsigned int itemIdHigh, unsigned long long *outDownloaded, unsigned long long *outTotal ) {" in null_client
     assert "qboolean SteamUtils_GetIPCountry( char *buffer, size_t bufferSize ) {" in null_client
-    assert "SteamClient_SetInitializedState( services );" in apps_wrapper_block
+    assert "if ( !SteamClient_IsInitialized() ) {" in apps_wrapper_block
+    assert "SteamClient_ShouldRefreshPlatformServices()" not in apps_wrapper_block
+    assert "QL_RefreshPlatformServices();" not in apps_wrapper_block
+    assert "SteamClient_SetInitializedState( services );" not in apps_wrapper_block
     assert "return QL_Steamworks_IsSubscribedApp( (uint32_t)appId );" in apps_wrapper_block
-    assert "SteamClient_SetInitializedState( services );" in ugc_wrapper_block
+    assert "if ( !SteamClient_IsInitialized() ) {" in ugc_wrapper_block
+    assert "SteamClient_ShouldRefreshPlatformServices()" not in ugc_wrapper_block
+    assert "QL_RefreshPlatformServices();" not in ugc_wrapper_block
+    assert "SteamClient_SetInitializedState( services );" not in ugc_wrapper_block
     assert "return QL_Steamworks_GetItemDownloadInfo( (uint32_t)itemIdLow, (uint32_t)itemIdHigh, (uint64_t *)outDownloaded, (uint64_t *)outTotal );" in ugc_wrapper_block
-    assert "SteamClient_SetInitializedState( services );" in country_wrapper_block
+    assert "if ( !SteamClient_IsInitialized() ) {" in country_wrapper_block
+    assert "SteamClient_ShouldRefreshPlatformServices()" not in country_wrapper_block
+    assert "QL_RefreshPlatformServices();" not in country_wrapper_block
+    assert "SteamClient_SetInitializedState( services );" not in country_wrapper_block
     assert "return QL_Steamworks_GetIPCountry( buffer, bufferSize );" in country_wrapper_block
     assert "return SteamApps_BIsSubscribedApp( (uint32_t)arg1 ) ? 1 : 0;" in ui_subscribed_block
     assert "return SteamApps_BIsSubscribedApp( (uint32_t)appId ) ? 1 : 0;" in cgame_subscribed_block
@@ -2934,6 +2990,14 @@ def test_client_browser_js_bridge_reconstructs_qz_instance_contract() -> None:
 
 
 def test_client_browser_lobby_social_shims_reconstruct_retail_qz_instance_dispatch_surface() -> None:
+    hlil_part01 = (
+        REPO_ROOT
+        / "references/hlil/quakelive/quakelive_steam.exe/quakelive_steam.exe_hlil_split/quakelive_steam.exe_hlil_part01.txt"
+    ).read_text(encoding="utf-8")
+    hlil_part02 = (
+        REPO_ROOT
+        / "references/hlil/quakelive/quakelive_steam.exe/quakelive_steam.exe_hlil_split/quakelive_steam.exe_hlil_part02.txt"
+    ).read_text(encoding="utf-8")
     client_h = (REPO_ROOT / "src/code/client/client.h").read_text(encoding="utf-8")
     cl_main = (REPO_ROOT / "src/code/client/cl_main.c").read_text(encoding="utf-8")
     qcommon_h = (REPO_ROOT / "src/code/qcommon/qcommon.h").read_text(encoding="utf-8")
@@ -3027,6 +3091,45 @@ def test_client_browser_lobby_social_shims_reconstruct_retail_qz_instance_dispat
     assert "qboolean QL_Steamworks_GetQueryUGCPreviewURL( uint64_t queryHandle, uint32_t index, char *buffer, size_t bufferSize );" in platform_steamworks_h
     assert "void QL_Steamworks_ReleaseQueryUGCRequest( uint64_t queryHandle );" in platform_steamworks_h
 
+    assert "004649b0    int32_t sub_4649b0()" in hlil_part02
+    assert "004649b0  int32_t result = sub_460510()" in hlil_part02
+    assert "004649d2  return (*(*eax + 0x34))(2, *(data_e30338 + 0x30))" in hlil_part02
+    assert "004649e0    int32_t sub_4649e0()" in hlil_part02
+    assert "004649e6  int32_t result = sub_460510()" in hlil_part02
+    assert '00464a5f  sub_4f3260(eax_2, edi, sub_4d9220("lobby.%s.left"), &var_14)' in hlil_part02
+    assert "00464ac0    int32_t sub_464ac0(char* arg1)" in hlil_part02
+    assert "00464ac3  int32_t result = sub_460510()" in hlil_part02
+    assert "00464aff  return (*(*eax_2 + 0x68))(data_e3033c, data_e30340, arg1, eax - &eax[1] + 1)" in hlil_part02
+    assert "00464b10    int32_t* sub_464b10(int32_t arg1, int32_t arg2)" in hlil_part02
+    assert "00464b16  int32_t* result = sub_460510()" in hlil_part02
+    assert "00464b28      result = sub_464540(&data_e3033c)" in hlil_part02
+    assert "00464ba2              return (*(*eax_5 + 0x74))(edx_5, ecx_5, arg1, arg2, edx_5, ecx_5)" in hlil_part02
+    assert "00464bb0    int32_t sub_464bb0()" in hlil_part02
+    assert "00464bb0  int32_t result = sub_460510()" in hlil_part02
+    assert "00464be5          return (*(*eax + 0x84))(data_e3033c, data_e30340)" in hlil_part02
+    assert "00465630    int32_t sub_465630(int32_t arg1)" in hlil_part02
+    assert "00465636  int32_t result = sub_460510()" in hlil_part02
+    assert '00465656  sscanf(arg1, "%llu", &var_c)' in hlil_part02
+    assert "00465674  return (*(*SteamMatchmaking() + 0x38))(var_c, var_8_1)" in hlil_part02
+    assert "00431fc0          case 3" in hlil_part01
+    assert "0043200b                  int32_t eax_13 = SteamFriends()" in hlil_part01
+    assert "00432025                  (*(edx_1 + 0x78))(var_13c)" in hlil_part01
+    assert "004322a5          case 0xe" in hlil_part01
+    assert '00432306                  sscanf(eax_40, "%llu", var_13c)' in hlil_part01
+    assert "0043233b                  int32_t edx_5 = *(*SteamUserStats() + 0x40)" in hlil_part01
+    assert "00432348                  result = edx_5(var_e0, var_13c)" in hlil_part01
+    assert "00432351          case 0xf" in hlil_part01
+    assert '004323b5                  sscanf(eax_44, "%llu", var_13c)' in hlil_part01
+    assert "004323dc                  int32_t eax_45 = SteamFriends()" in hlil_part01
+    assert "00432424                  int32_t edx_7 = *(*eax_45 + 0x74)" in hlil_part01
+    assert "00432432                  edx_7(eax_48, var_e0, var_13c)" in hlil_part01
+    assert "0043261f          case 0x11" in hlil_part01
+    assert "00432641                  result = sub_460dc0(var_138)" in hlil_part01
+    assert "00460dc0    int32_t sub_460dc0(int32_t arg1)" in hlil_part02
+    assert "00460dd6  int32_t eax_2 = (*(*SteamUtils() + 0x24))()" in hlil_part02
+    assert "00460df3  eax_4, edx_3 = (*(*SteamUGC() + 4))(1, 0, eax_2, eax_2, arg1)" in hlil_part02
+    assert "00460e42  *(eax_8 + 0x1c) = sub_45fd00" in hlil_part02
+
     assert "currentLobbyValid" not in cl_main
     assert "static qboolean CL_Steam_ParseIdentityArgument" not in cl_main
     assert "cl_steamCallbackState.currentLobbyValid" not in current_lobby_block
@@ -3044,14 +3147,23 @@ def test_client_browser_lobby_social_shims_reconstruct_retail_qz_instance_dispat
     assert 'if ( !url ) {' in open_overlay_url_block
     assert 'CL_LogSocialOverlayIgnored( "OpenSteamOverlayURL", "missing overlay url" );' in open_overlay_url_block
     assert 'CL_LogSocialOverlayIgnored( "OpenSteamOverlayURL", "social overlay provider unavailable" );' in open_overlay_url_block
+    assert 'CL_LogSocialOverlayIgnored( "OpenSteamOverlayURL", "social overlay initialisation failed" );' in open_overlay_url_block
+    assert open_overlay_url_block.index("if ( !SteamClient_IsInitialized() ) {") < open_overlay_url_block.index("QL_Steamworks_ActivateOverlayToWebPage( url )")
     assert "QL_Steamworks_ActivateOverlayToWebPage( url )" in open_overlay_url_block
     assert 'CL_LogSocialOverlayIgnored( "OpenSteamOverlayURL", "overlay page activation failed" );' in open_overlay_url_block
     assert "maxMembers = cl_steamMaxLobbyClients ? cl_steamMaxLobbyClients->integer : 16;" in create_block
     assert "if ( maxMembers <= 0 ) {" not in create_block
+    assert 'CL_LogMatchmakingServiceIgnored( "CreateLobby", "matchmaking provider initialisation failed" );' in create_block
+    assert create_block.index("if ( !SteamClient_IsInitialized() ) {") < create_block.index("maxMembers = cl_steamMaxLobbyClients ? cl_steamMaxLobbyClients->integer : 16;")
     assert "return QL_Steamworks_CreateLobby( maxMembers );" in create_block
+    assert create_block.index("if ( !SteamClient_IsInitialized() ) {") < create_block.index("return QL_Steamworks_CreateLobby( maxMembers );")
     assert 'CL_LogMatchmakingServiceIgnored( "LeaveLobby", "no active lobby" );' not in leave_block
+    assert 'CL_LogMatchmakingServiceIgnored( "LeaveLobby", "matchmaking provider initialisation failed" );' in leave_block
     assert "CL_Steam_LeaveCurrentLobby();" in leave_block
+    assert leave_block.index("if ( !SteamClient_IsInitialized() ) {") < leave_block.index("CL_Steam_LeaveCurrentLobby();")
     assert "parsedLobbyId = 0ull;" in join_block
+    assert 'CL_LogMatchmakingServiceIgnored( "JoinLobby", "matchmaking provider initialisation failed" );' in join_block
+    assert join_block.index("if ( !SteamClient_IsInitialized() ) {") < join_block.index("parsedLobbyId = 0ull;")
     assert 'sscanf( lobbyId, "%llu", &parsedLobbyId );' in join_block
     assert 'CL_LogMatchmakingServiceIgnored( "JoinLobby", "invalid lobby id" );' not in join_block
     assert "CL_Steam_ParseIdentityArgument( lobbyId, &lobbyIdLow, &lobbyIdHigh )" not in join_block
@@ -3059,8 +3171,12 @@ def test_client_browser_lobby_social_shims_reconstruct_retail_qz_instance_dispat
     assert "(uint32_t)( parsedLobbyId & 0xffffffffu )" in join_block
     assert "(uint32_t)( parsedLobbyId >> 32 )" in join_block
     assert "CL_Steam_GetCurrentLobbyIdentityWords( &lobbyIdLow, &lobbyIdHigh )" in set_server_block
+    assert 'CL_LogMatchmakingServiceIgnored( "SetLobbyServer", "matchmaking provider initialisation failed" );' in set_server_block
+    assert set_server_block.index("if ( !SteamClient_IsInitialized() ) {") < set_server_block.index("CL_Steam_GetCurrentLobbyIdentityWords(")
     assert "return QL_Steamworks_SetLobbyServer( lobbyIdLow, lobbyIdHigh, (uint32_t)serverIp, (uint16_t)serverPort );" in set_server_block
     assert "CL_Steam_GetCurrentLobbyIdentityWords( &lobbyIdLow, &lobbyIdHigh )" in show_invite_block
+    assert 'CL_LogMatchmakingServiceIgnored( "ShowInviteOverlay", "matchmaking provider initialisation failed" );' in show_invite_block
+    assert show_invite_block.index("if ( !SteamClient_IsInitialized() ) {") < show_invite_block.index("CL_Steam_GetCurrentLobbyIdentityWords(")
     assert "return QL_Steamworks_ShowInviteOverlay( lobbyIdLow, lobbyIdHigh );" in show_invite_block
     assert "!com_sv_running->integer" in invite_connect_block
     assert "NET_AdrToString( serverAddress )" in invite_connect_block
@@ -3070,6 +3186,8 @@ def test_client_browser_lobby_social_shims_reconstruct_retail_qz_instance_dispat
     assert "QL_Steamworks_ServerGetPublicIP()" in invite_connect_block
     assert '"+connect %lu:%s"' in invite_connect_block
     assert "parsedSteamId = 0ull;" in invite_block
+    assert 'CL_LogMatchmakingServiceIgnored( "Invite", "matchmaking provider initialisation failed" );' in invite_block
+    assert invite_block.index("if ( !SteamClient_IsInitialized() ) {") < invite_block.index("parsedSteamId = 0ull;")
     assert 'sscanf( steamId, "%llu", &parsedSteamId );' in invite_block
     assert 'CL_LogMatchmakingServiceIgnored( "Invite", "invalid target user id" );' not in invite_block
     assert "CL_Steam_ParseIdentityArgument( steamId, &steamIdLow, &steamIdHigh )" not in invite_block
@@ -3081,16 +3199,22 @@ def test_client_browser_lobby_social_shims_reconstruct_retail_qz_instance_dispat
     assert "CL_Steam_BuildInviteConnectString( connectString, sizeof( connectString ) )" in invite_block
     assert "return QL_Steamworks_InviteUserToGame(" in invite_block
     assert "CL_Steam_GetCurrentLobbyIdentityWords( &lobbyIdLow, &lobbyIdHigh )" in say_block
+    assert 'CL_LogMatchmakingServiceIgnored( "SayLobby", "matchmaking provider initialisation failed" );' in say_block
+    assert say_block.index("if ( !SteamClient_IsInitialized() ) {") < say_block.index("CL_Steam_GetCurrentLobbyIdentityWords(")
     assert 'CL_LogMatchmakingServiceIgnored( "SayLobby", "missing lobby message" );' not in say_block
     assert 'lobbyMessage = message ? message : "";' in say_block
     assert "return QL_Steamworks_SayLobby( lobbyIdLow, lobbyIdHigh, lobbyMessage );" in say_block
     assert 'CL_LogWorkshopLifecycle( "request-ugc-query", "workshop provider unavailable" );' in request_ugc_block
+    assert 'CL_LogWorkshopLifecycle( "request-ugc-query", "workshop provider initialisation failed" );' in request_ugc_block
+    assert request_ugc_block.index("if ( !SteamClient_IsInitialized() ) {") < request_ugc_block.index("Com_sprintf( detail, sizeof( detail ),")
     assert 'CL_LogWorkshopLifecycle( "request-ugc-query", "invalid query page" );' not in request_ugc_block
     assert '"forwarding %s value %d (semantic=%s)"' in request_ugc_block
     assert "QL_Steamworks_GetAllUGCFilterContractLabel()" in request_ugc_block
     assert "QL_Steamworks_GetAllUGCFilterSemanticGapLabel()" in request_ugc_block
     assert "return QL_Steamworks_RequestAllUGCQuery( (uint32_t)filter );" in request_ugc_block
     assert "parsedSteamId = 0ull;" in request_stats_block
+    assert 'CL_LogStatsServiceIgnored( "RequestUserStats", "stats provider initialisation failed" );' in request_stats_block
+    assert request_stats_block.index("if ( !SteamClient_IsInitialized() ) {") < request_stats_block.index("parsedSteamId = 0ull;")
     assert 'sscanf( steamId, "%llu", &parsedSteamId );' in request_stats_block
     assert 'CL_LogStatsServiceIgnored( "RequestUserStats", "invalid user id" );' not in request_stats_block
     assert "CL_Steam_ParseIdentityArgument( steamId, &steamIdLow, &steamIdHigh )" not in request_stats_block
@@ -3098,6 +3222,8 @@ def test_client_browser_lobby_social_shims_reconstruct_retail_qz_instance_dispat
     assert "(uint32_t)( parsedSteamId & 0xffffffffu )" in request_stats_block
     assert "(uint32_t)( parsedSteamId >> 32 )" in request_stats_block
     assert 'if ( !dialog ) {' in activate_overlay_block
+    assert 'CL_LogSocialOverlayIgnored( "ActivateGameOverlayToUser", "social overlay initialisation failed" );' in activate_overlay_block
+    assert activate_overlay_block.index("if ( !SteamClient_IsInitialized() ) {") < activate_overlay_block.index("parsedSteamId = 0ull;")
     assert "parsedSteamId = 0ull;" in activate_overlay_block
     assert 'sscanf( steamId, "%llu", &parsedSteamId );' in activate_overlay_block
     assert 'CL_LogSocialOverlayIgnored( "ActivateGameOverlayToUser", "invalid target user id" );' not in activate_overlay_block
@@ -3148,6 +3274,10 @@ def test_client_browser_favorite_server_lane_reconstructs_retail_steam_matchmaki
     cl_cgame = (REPO_ROOT / "src/code/client/cl_cgame.c").read_text(encoding="utf-8")
     platform_steamworks_h = (REPO_ROOT / "src/common/platform/platform_steamworks.h").read_text(encoding="utf-8")
     platform_steamworks_c = (REPO_ROOT / "src/common/platform/platform_steamworks.c").read_text(encoding="utf-8")
+    hlil_part01 = (
+        REPO_ROOT
+        / "references/hlil/quakelive/quakelive_steam.exe/quakelive_steam.exe_hlil_split/quakelive_steam.exe_hlil_part01.txt"
+    ).read_text(encoding="utf-8")
 
     favorite_block = _extract_function_block(
         cl_cgame, "static qboolean CL_WebHost_SetFavoriteServer( uint32_t ip, uint16_t port, qboolean add )"
@@ -3163,10 +3293,22 @@ def test_client_browser_favorite_server_lane_reconstructs_retail_steam_matchmaki
         "qboolean QL_Steamworks_SetFavoriteServerForApp( uint32_t serverIp, uint16_t serverPort, uint32_t appId, qboolean add )",
     )
 
+    assert "00432681          case 0x13" in hlil_part01
+    assert "0043268a              if (result u>= 3)" in hlil_part01
+    assert "004326a9                  if (Awesomium::JSValue::ToInteger" in hlil_part01
+    assert "00432736                      int32_t eax_82 = SteamUtils()" in hlil_part01
+    assert "00432742                      int32_t eax_83 = SteamMatchmaking()" in hlil_part01
+    assert "00432798                      (*edx_26)(var_138)" in hlil_part01
+    assert "004326af                      int32_t eax_70 = SteamUtils()" in hlil_part01
+    assert "004326bb                      int32_t eax_71 = SteamMatchmaking()" in hlil_part01
+    assert "004326c9                      eax_72, edx_22 = _time64(var_138)" in hlil_part01
+    assert "00432729                      (*(ecx_98 + 8))(var_138)" in hlil_part01
     assert '#include "../../common/platform/platform_steamworks.h"' in cl_cgame
     assert "qboolean QL_Steamworks_SetFavoriteServer( uint32_t serverIp, uint16_t serverPort, qboolean add );" in platform_steamworks_h
     assert "qboolean QL_Steamworks_SetFavoriteServerForApp( uint32_t serverIp, uint16_t serverPort, uint32_t appId, qboolean add );" in platform_steamworks_h
-    assert "if ( CL_SteamServicesEnabled() && !QL_Steamworks_SetFavoriteServerForApp( ip, port, CL_SteamBrowser_GetDiscoveryAppID(), add ) ) {" in favorite_block
+    assert "if ( CL_SteamServicesEnabled() && SteamClient_IsInitialized() &&" in favorite_block
+    assert favorite_block.index("SteamClient_IsInitialized()") < favorite_block.index("QL_Steamworks_SetFavoriteServerForApp")
+    assert "QL_Steamworks_SetFavoriteServerForApp( ip, port, CL_SteamBrowser_GetDiscoveryAppID(), add )" in favorite_block
     assert "Com_DPrintf(" in favorite_block
     assert '"Steam favorite server %s failed for %u:%u; using local favorites cache fallback\\n"' in favorite_block
     assert 'add ? "add" : "remove"' in favorite_block
@@ -3186,6 +3328,10 @@ def test_client_browser_favorite_server_lane_reconstructs_retail_steam_matchmaki
 
 
 def test_client_browser_server_shims_reconstruct_retail_server_browser_surface() -> None:
+    hlil_part02 = (
+        REPO_ROOT
+        / "references/hlil/quakelive/quakelive_steam.exe/quakelive_steam.exe_hlil_split/quakelive_steam.exe_hlil_part02.txt"
+    ).read_text(encoding="utf-8")
     client_h = (REPO_ROOT / "src/code/client/client.h").read_text(encoding="utf-8")
     cl_main = (REPO_ROOT / "src/code/client/cl_main.c").read_text(encoding="utf-8")
 
@@ -3322,6 +3468,23 @@ def test_client_browser_server_shims_reconstruct_retail_server_browser_surface()
     assert "qboolean CL_Steam_RequestServerDetails( unsigned int serverIp, unsigned short serverPort );" in client_h
     assert "qboolean CL_Steam_RefreshServerList( void );" in client_h
 
+    assert "00462e80    void sub_462e80()" in hlil_part02
+    assert "00462e8b  if (*(esi + 8) != 0)" in hlil_part02
+    assert "00462e9e      (*(*eax_1 + 0x24))(*(esi + 8))" in hlil_part02
+    assert "00462eb0    int32_t __thiscall sub_462eb0(class Awesomium::JSArray* arg1, int32_t arg2)" in hlil_part02
+    assert "00462eca  if (*(arg1 + 4) == 0)" in hlil_part02
+    assert "00462ede          int32_t eax_1 = SteamMatchmakingServers()" in hlil_part02
+    assert "00462eeb          (*(*eax_1 + 0x18))(*(arg1 + 8))" in hlil_part02
+    assert '00462f25      strncpy(&var_208, "gamedir", 0x100)' in hlil_part02
+    assert '00462f38      strncpy(&var_108, "baseq3", 0x100)' in hlil_part02
+    assert "00463026          edi_1 = SteamMatchmakingServers()" in hlil_part02
+    assert "00463055      *(arg1 + 8) = eax_9" in hlil_part02
+    assert '00463058      result = sub_4f3260(arg1, edi_1, "servers.refresh.start", nullptr)' in hlil_part02
+    assert "00463090    int32_t sub_463090(int32_t arg1)" in hlil_part02
+    assert "004630a3  return sub_462eb0(data_e30334, arg1)" in hlil_part02
+    assert "004630b0    int32_t sub_4630b0(int32_t arg1, int32_t arg2)" in hlil_part02
+    assert "004630f3  return sub_461f70(eax, arg1, arg2)" in hlil_part02
+
     assert "case 0:" in request_mode_block
     assert "return AS_GLOBAL;" in request_mode_block
     assert "case 1:" in request_mode_block
@@ -3346,8 +3509,11 @@ def test_client_browser_server_shims_reconstruct_retail_server_browser_surface()
     assert 'return "source-browser compatibility";' in compatibility_owner_block
     assert 'return "ISteamMatchmakingServers";' in missing_owner_block
     assert 'return "ISteamMatchmakingServers native request handle unavailable; using source-browser fallback";' in native_adapter_gap_block
+    assert "SteamClient_IsInitialized()" in native_available_block
     assert "CL_MatchmakingServiceAvailable()" in native_available_block
     assert "QL_Steamworks_HasServerBrowserInterface()" in native_available_block
+    assert native_available_block.index("SteamClient_IsInitialized()") < native_available_block.index("CL_MatchmakingServiceAvailable()")
+    assert native_available_block.index("CL_MatchmakingServiceAvailable()") < native_available_block.index("QL_Steamworks_HasServerBrowserInterface()")
     assert "case 2:" in compatibility_source_block
     assert "case 4:" in compatibility_source_block
     assert "return qtrue;" in compatibility_source_block
@@ -4234,6 +4400,10 @@ def test_steam_user_stats_float_descriptor_round_383_is_pinned() -> None:
 
 def test_client_lobby_bootstrap_reconstructs_retail_connect_surface() -> None:
     cl_main = (REPO_ROOT / "src/code/client/cl_main.c").read_text(encoding="utf-8")
+    hlil_part02 = (
+        REPO_ROOT
+        / "references/hlil/quakelive/quakelive_steam.exe/quakelive_steam.exe_hlil_split/quakelive_steam.exe_hlil_part02.txt"
+    ).read_text(encoding="utf-8")
 
     callback_log_block = _extract_function_block(
         cl_main, "static void CL_LogMatchmakingCallbackLifecycle( const char *stage, const char *reason ) {"
@@ -4293,11 +4463,20 @@ def test_client_lobby_bootstrap_reconstructs_retail_connect_surface() -> None:
     assert "static const char *CL_GetMatchmakingServiceProviderLabel( void ) {" in cl_main
     assert "static const char *CL_GetMatchmakingServicePolicyLabel( void ) {" in cl_main
     assert 'Com_DPrintf( "%s callback: %s (%s [%s])\\n",' in callback_log_block
+    assert "00464aa0    int32_t* sub_464aa0()" in hlil_part02
+    assert '00464ab5  return sub_4cd250("lobby_autoconnect", sub_4c7ee0(1))' in hlil_part02
+    assert "00465840    int32_t sub_465840()" in hlil_part02
+    assert '00465867  sub_4ce0d0(x87_r0, "lobby_autoconnect", &data_54f9da, 0x100)' in hlil_part02
+    assert '00465887  data_e30338 = sub_4ce0d0(x87_r2, "steam_maxLobbyClients", "16", 1)' in hlil_part02
+    assert '00465894  return sub_4c81d0("connect_lobby", sub_464aa0)' in hlil_part02
+    assert "004645a0    int32_t __stdcall sub_4645a0(class Awesomium::JSArray* arg1)" in hlil_part02
+    assert "00464626  if (var_860 == 1)" in hlil_part02
+    assert '004646e2      sub_4f3260(arg1, eax_5, sub_4d9220("lobby.%s.chat"), &var_870)' in hlil_part02
     assert 'CL_LogMatchmakingCallbackLifecycle( "rich_presence_join_requested", "ignored null callback payload" );' in rich_presence_callback_block
     assert "CL_Steam_OnRichPresenceJoinRequested( event->command );" in rich_presence_callback_block
     assert 'Cvar_Set( "lobby_autoconnect", Cmd_Argv( 1 ) );' in connect_block
-    assert 'CL_LogMatchmakingServiceIgnored( "connect_lobby", "missing lobby id" );' in connect_block
-    assert 'CL_LogMatchmakingServiceIgnored( "connect_lobby", "matchmaking provider unavailable" );' in connect_block
+    assert "Cmd_Argc()" not in connect_block
+    assert "CL_LogMatchmakingServiceIgnored" not in connect_block
     assert 'CL_LogMatchmakingCallbackLifecycle( "p2p_session_request", "ignored null callback payload" );' in p2p_callback_block
     assert "CL_Steam_FormatSteamId( event->remoteId.value, remoteId, sizeof( remoteId ) );" in p2p_callback_block
     assert "CL_GetServerSteamId( &serverIdLow, &serverIdHigh ) || !( serverIdLow | serverIdHigh )" in p2p_callback_block
@@ -4367,6 +4546,10 @@ def test_client_lobby_bootstrap_reconstructs_retail_connect_surface() -> None:
     assert 'Com_sprintf( payload, sizeof( payload ), "{\\"id\\":\\"%s\\",\\"name\\":\\"%s\\",\\"num_players\\":%d,\\"max_players\\":%d}",' in lobby_chat_update_block
     assert 'CL_LogMatchmakingCallbackLifecycle( "lobby_chat_message", "ignored null callback payload" );' in lobby_chat_message_block
     assert 'CL_LogMatchmakingCallbackLifecycle( "lobby_chat_message", detail );' in lobby_chat_message_block
+    assert "if ( event->chatEntryType != 1 ) {" in lobby_chat_message_block
+    assert '"ignored non-chat entry type=%d"' in lobby_chat_message_block
+    assert lobby_chat_message_block.index("if ( event->chatEntryType != 1 ) {") < lobby_chat_message_block.index("QL_Steamworks_GetFriendSummary(")
+    assert lobby_chat_message_block.index("if ( event->chatEntryType != 1 ) {") < lobby_chat_message_block.index('CL_Steam_PublishBrowserEvent( eventName, payload );')
     assert '"chat from %s in lobby %s type=%d bytes=%d"' in lobby_chat_message_block
     assert 'Com_sprintf( payload, sizeof( payload ), "{\\"id\\":\\"%s\\",\\"name\\":\\"%s\\",\\"msg\\":\\"%s\\"}", userId, name, message );' in lobby_chat_message_block
     assert 'CL_LogMatchmakingCallbackLifecycle( "lobby_data_update", "ignored null callback payload" );' in lobby_data_update_block
@@ -4391,7 +4574,7 @@ def test_client_lobby_bootstrap_reconstructs_retail_connect_surface() -> None:
     assert 'CL_LogMatchmakingCallbackLifecycle( "lobby_join_requested", detail );' in lobby_join_requested_block
     assert '"join requested lobby=%llu friend=%llu"' in lobby_join_requested_block
     assert 'Com_sprintf( payload, sizeof( payload ), "{\\"id\\":\\"%llu\\"}", (unsigned long long)event->lobbyId.value );' in lobby_join_requested_block
-    lobby_init_block = _extract_function_block(cl_main, "static qboolean SteamLobby_Init( void ) {")
+    lobby_init_block = _extract_function_block(cl_main, "static void SteamLobby_Init( void ) {")
 
     assert 'Cvar_Get( "lobby_autoconnect", "", CVAR_TEMP );' not in init_block
     assert 'Cvar_Get( "steam_maxLobbyClients", "16", CVAR_ARCHIVE );' not in init_block
@@ -4689,21 +4872,50 @@ def test_client_main_menu_presence_seed_reconstructs_retail_bootstrap_status() -
     client_h = (REPO_ROOT / "src/code/client/client.h").read_text(encoding="utf-8")
     cl_main = (REPO_ROOT / "src/code/client/cl_main.c").read_text(encoding="utf-8")
     steamworks = (REPO_ROOT / "src/common/platform/platform_steamworks.c").read_text(encoding="utf-8")
+    hlil_part02 = (
+        REPO_ROOT
+        / "references/hlil/quakelive/quakelive_steam.exe/quakelive_steam.exe_hlil_split/quakelive_steam.exe_hlil_part02.txt"
+    ).read_text(encoding="utf-8")
 
     presence_block = _extract_function_block(cl_main, "static void CL_Steam_SetMainMenuRichPresence( void )")
     init_block = _extract_function_block(cl_main, "void CL_Init( void )")
+    steam_client_init_block = _extract_function_block(cl_main, "void SteamClient_Init( void ) {")
     platform_block = _extract_function_block(
         steamworks,
         "qboolean QL_Steamworks_SetRichPresence( const char *key, const char *value )",
     )
+    init_failure_start = steam_client_init_block.index("if ( !SteamClient_IsInitialized() ) {")
+    init_failure_block = steam_client_init_block[init_failure_start:steam_client_init_block.index("clientCallbacksRegistered = SteamCallbacks_Init();")]
 
+    assert "00461525      if (eax_1 == 0)" in hlil_part02
+    assert '00461534          return sub_4c9ab0("Steam API not present.\\n")' in hlil_part02
+    assert "00461556      sub_4659e0()" in hlil_part02
+    assert "0046155b      sub_465840()" in hlil_part02
+    assert '0046156a      sub_4c81d0("+voice", sub_4603f0)' in hlil_part02
+    assert '00461579      sub_4c81d0("-voice", sub_460490)' in hlil_part02
+    assert '00461595      if ((*(*SteamUtils() + 0x24))() == 0x54100)' in hlil_part02
+    assert '004615a1          sub_4c81d0("stats_clear", sub_460520)' in hlil_part02
+    assert '004615c3      (*(*SteamFriends() + 0xac))("status", "At the main menu")' in hlil_part02
+    assert '004615ca      result = sub_4c9860(esi, "Steam API initialized.\\n")' in hlil_part02
     assert "void CL_LogMatchmakingServiceIgnored( const char *commandName, const char *reason );" in client_h
     assert 'CL_LogMatchmakingServiceIgnored( "steam_presence_main_menu", "matchmaking provider unavailable" );' in presence_block
+    assert "if ( !SteamClient_IsInitialized() ) {" in presence_block
     assert 'if ( !QL_Steamworks_SetRichPresence( "status", "At the main menu" ) ) {' in presence_block
     assert 'CL_LogMatchmakingServiceIgnored( "steam_presence_main_menu", "rich presence update failed" );' in presence_block
-    steam_client_init_block = _extract_function_block(cl_main, "void SteamClient_Init( void ) {")
     assert "CL_Steam_SetMainMenuRichPresence();" not in init_block
     assert "CL_Steam_SetMainMenuRichPresence();" in steam_client_init_block
+    assert 'CL_LogClientCallbackBootstrapFallback( "online services disabled; keeping compatibility-only browser event fallback" );' in init_failure_block
+    assert "return;" in init_failure_block
+    assert steam_client_init_block.index("if ( !SteamClient_IsInitialized() ) {") < steam_client_init_block.index("clientCallbacksRegistered = SteamCallbacks_Init();")
+    assert steam_client_init_block.index("if ( !SteamClient_IsInitialized() ) {") < steam_client_init_block.index("SteamLobby_Init();")
+    assert steam_client_init_block.index("if ( !SteamClient_IsInitialized() ) {") < steam_client_init_block.index('Cmd_AddCommand ("+voice", CL_VoiceStartRecording_f );')
+    assert steam_client_init_block.index("if ( !SteamClient_IsInitialized() ) {") < steam_client_init_block.index("if ( CL_Steam_ShouldRegisterStatsClear() ) {")
+    assert steam_client_init_block.index("if ( !SteamClient_IsInitialized() ) {") < steam_client_init_block.index("CL_Steam_SetMainMenuRichPresence();")
+    assert steam_client_init_block.index("SteamLobby_Init();") < steam_client_init_block.index('Cmd_AddCommand ("+voice", CL_VoiceStartRecording_f );')
+    assert steam_client_init_block.index('Cmd_AddCommand ("-voice", CL_VoiceStopRecording_f );') < steam_client_init_block.index("if ( CL_Steam_ShouldRegisterStatsClear() ) {")
+    assert steam_client_init_block.index("if ( CL_Steam_ShouldRegisterStatsClear() ) {") < steam_client_init_block.index("CL_Steam_SetMainMenuRichPresence();")
+    assert 'Com_Printf( "Steam API initialized.\\n" );' in steam_client_init_block
+    assert steam_client_init_block.index("CL_Steam_SetMainMenuRichPresence();") < steam_client_init_block.index('Com_Printf( "Steam API initialized.\\n" );')
     assert "vtable[0xac / 4]" in platform_block
     assert "return fn( friends, NULL, key, value ) ? qtrue : qfalse;" in platform_block
 
@@ -4712,6 +4924,14 @@ def test_client_identity_bootstrap_and_ui_subscription_lanes_stay_explicit() -> 
     qcommon_h = (REPO_ROOT / "src/code/qcommon/qcommon.h").read_text(encoding="utf-8")
     cl_main = (REPO_ROOT / "src/code/client/cl_main.c").read_text(encoding="utf-8")
     cl_ui = (REPO_ROOT / "src/code/client/cl_ui.c").read_text(encoding="utf-8")
+    hlil_part02 = (
+        REPO_ROOT
+        / "references/hlil/quakelive/quakelive_steam.exe/quakelive_steam.exe_hlil_split/quakelive_steam.exe_hlil_part02.txt"
+    ).read_text(encoding="utf-8")
+    hlil_part04 = (
+        REPO_ROOT
+        / "references/hlil/quakelive/quakelive_steam.exe/quakelive_steam.exe_hlil_split/quakelive_steam.exe_hlil_part04.txt"
+    ).read_text(encoding="utf-8")
 
     identity_log_block = _extract_function_block(
         cl_main, "static void CL_LogIdentityBootstrapFallback( const char *stage, const char *reason ) {"
@@ -4739,6 +4959,13 @@ def test_client_identity_bootstrap_and_ui_subscription_lanes_stay_explicit() -> 
     assert "static const char *CL_GetIdentityBootstrapModeLabel( void ) {" in cl_main
     assert "static const char *CL_GetIdentityBootstrapPolicyLabel( void ) {" in cl_main
     assert 'Com_DPrintf( "%s identity bootstrap: %s (%s [%s])\\n",' in identity_log_block
+    assert "00460610    int32_t* sub_460610()" in hlil_part02
+    assert '00460615  int32_t* result = sub_4ccd80("com_build")' in hlil_part02
+    assert '0046064d      return sub_4cd250("name", "anon")' in hlil_part02
+    assert "00460690    int32_t sub_460690()" in hlil_part02
+    assert "00460697  if (data_e30218 == 0)" in hlil_part02
+    assert "004bcdc3  sub_460610()" in hlil_part04
+    assert '004bcde9      sub_4cd250("country", sub_460690(arg1))' in hlil_part04
     assert "SteamClient_SyncPersonaNameCvar();" in init_block
     assert "QLWebHost_RegisterCommands();" in init_block
     assert init_block.index('Cmd_AddCommand ("clientviewprofile", CL_Steam_OverlayCommand_f );') < init_block.index("QLWebHost_RegisterCommands();")
@@ -4746,16 +4973,30 @@ def test_client_identity_bootstrap_and_ui_subscription_lanes_stay_explicit() -> 
     assert 'CL_LogIdentityBootstrapFallback( "steam_persona_name", "identity bootstrap provider unavailable" );' in persona_block
     assert 'CL_LogIdentityBootstrapFallback( "steam_persona_name", "identity bootstrap initialisation failed" );' in persona_block
     assert 'CL_LogIdentityBootstrapFallback( "steam_persona_name", "persona unavailable; falling back to anon" );' in persona_block
+    assert "if ( !SteamClient_ShouldRefreshPlatformServices() ) {" in persona_block
+    assert "if ( !SteamClient_IsInitialized() ) {" in persona_block
+    assert "QL_Steamworks_Init()" not in persona_block
+    assert persona_block.index("if ( !SteamClient_ShouldRefreshPlatformServices() ) {") < persona_block.index("if ( !SteamClient_IsInitialized() ) {")
+    assert persona_block.index("if ( !SteamClient_IsInitialized() ) {") < persona_block.index("QL_Steamworks_GetPersonaName( personaName, sizeof( personaName ) )")
+    assert 'Cvar_Set( "name", "anon" );' in persona_block
     assert 'CL_LogIdentityBootstrapFallback( "steam_country_seed", "identity bootstrap provider unavailable" );' in country_block
     assert 'CL_LogIdentityBootstrapFallback( "steam_country_seed", "identity bootstrap initialisation failed" );' in country_block
     assert 'CL_LogIdentityBootstrapFallback( "steam_country_seed", "country seed unavailable" );' in country_block
+    assert "if ( !SteamClient_ShouldRefreshPlatformServices() ) {" in country_block
+    assert "if ( !SteamClient_IsInitialized() ) {" in country_block
+    assert "QL_Steamworks_Init()" not in country_block
+    assert country_block.index("if ( !SteamClient_ShouldRefreshPlatformServices() ) {") < country_block.index("if ( !SteamClient_IsInitialized() ) {")
+    assert country_block.index("if ( !SteamClient_IsInitialized() ) {") < country_block.index("SteamUtils_GetIPCountry( country, sizeof( country ) )")
     assert 'if ( SteamUtils_GetIPCountry( country, sizeof( country ) ) && country[0] ) {' in country_block
     assert 'Cvar_Set( "country", country );' in country_block
-    assert "SteamClient_SetInitializedState( services );" in steam_apps_wrapper_block
+    assert "SteamClient_SetInitializedState( services );" not in steam_apps_wrapper_block
+    assert "QL_RefreshPlatformServices();" not in steam_apps_wrapper_block
     assert "return QL_Steamworks_IsSubscribedApp( (uint32_t)appId );" in steam_apps_wrapper_block
-    assert "SteamClient_SetInitializedState( services );" in steam_ugc_wrapper_block
+    assert "SteamClient_SetInitializedState( services );" not in steam_ugc_wrapper_block
+    assert "QL_RefreshPlatformServices();" not in steam_ugc_wrapper_block
     assert "return QL_Steamworks_GetItemDownloadInfo( (uint32_t)itemIdLow, (uint32_t)itemIdHigh, (uint64_t *)outDownloaded, (uint64_t *)outTotal );" in steam_ugc_wrapper_block
-    assert "SteamClient_SetInitializedState( services );" in steam_country_wrapper_block
+    assert "SteamClient_SetInitializedState( services );" not in steam_country_wrapper_block
+    assert "QL_RefreshPlatformServices();" not in steam_country_wrapper_block
     assert "return QL_Steamworks_GetIPCountry( buffer, bufferSize );" in steam_country_wrapper_block
 
     assert '#include "../../common/platform/platform_services.h"' in cl_ui
@@ -4771,6 +5012,10 @@ def test_game_start_publisher_reconstructs_retail_match_presence_and_connect_han
     qcommon_h = (REPO_ROOT / "src/code/qcommon/qcommon.h").read_text(encoding="utf-8")
     cl_main = (REPO_ROOT / "src/code/client/cl_main.c").read_text(encoding="utf-8")
     cl_cgame = (REPO_ROOT / "src/code/client/cl_cgame.c").read_text(encoding="utf-8")
+    hlil_part05 = (
+        REPO_ROOT
+        / "references/hlil/quakelive/quakelive_steam.exe/quakelive_steam.exe_hlil_split/quakelive_steam.exe_hlil_part05.txt"
+    ).read_text(encoding="utf-8")
 
     presence_block = _extract_function_block(cl_main, "static void CL_Steam_SetMatchRichPresence( void )")
     packed_publish_block = _extract_function_block(
@@ -4783,16 +5028,38 @@ def test_game_start_publisher_reconstructs_retail_match_presence_and_connect_han
     connect_block = _extract_function_block(cl_main, "void CL_Connect_f( void )")
     first_snapshot_block = _extract_function_block(cl_cgame, "void CL_FirstSnapshot( void )")
 
+    assert "004f38f0    int32_t sub_4f38f0" in hlil_part05
+    assert "004f38ff  if (*(result + 0x30) != 0)" in hlil_part05
+    assert "004f39f7          if (sub_460510() != 0)" in hlil_part05
+    assert '004f3a13              (*(*SteamFriends() + 0xac))("lanIp", eax_10)' in hlil_part05
+    assert "004f3b50  if (sub_460510() != 0)" in hlil_part05
+    assert '004f3b6c      (*(*SteamFriends() + 0xac))("status", "Playing a match")' in hlil_part05
+    assert '004f3b77  sub_4f3260(arg1, edi, "game.start", &var_30)' in hlil_part05
     assert "void CL_LogMatchmakingServiceIgnored( const char *commandName, const char *reason );" in client_h
     assert "qboolean\tNET_GetLocalAddressIP( netadr_t *address );" in qcommon_h
     assert "CL_SteamServicesEnabled()" in presence_block
     assert "clc.demoplaying" in presence_block
     assert 'CL_LogMatchmakingServiceIgnored( "steam_presence_match", "matchmaking provider unavailable" );' in presence_block
+    assert 'CL_LogMatchmakingServiceIgnored( "steam_presence_match", "matchmaking provider initialisation failed" );' in presence_block
+    assert "if ( !SteamClient_IsInitialized() ) {" in presence_block
+    assert presence_block.index("if ( clc.demoplaying ) {") < presence_block.index("if ( !SteamClient_IsInitialized() ) {")
+    assert presence_block.index("if ( !SteamClient_IsInitialized() ) {") < presence_block.index(
+        'if ( !QL_Steamworks_SetRichPresence( "status", "Playing a match" ) ) {'
+    )
     assert 'if ( !QL_Steamworks_SetRichPresence( "status", "Playing a match" ) ) {' in presence_block
     assert 'CL_LogMatchmakingServiceIgnored( "steam_presence_match", "rich presence update failed" );' in presence_block
+    assert "if ( clc.demoplaying ) {" in packed_publish_block
+    assert packed_publish_block.index("if ( clc.demoplaying ) {") < packed_publish_block.index(
+        "if ( publishLanIp && SteamClient_IsInitialized() ) {"
+    )
+    assert "if ( publishLanIp && SteamClient_IsInitialized() ) {" in packed_publish_block
+    assert "CL_SteamServicesEnabled()" not in packed_publish_block
     assert 'Com_sprintf( lanAddress, sizeof( lanAddress ), "%lu:%u", (unsigned long)packedIp, port );' in packed_publish_block
     assert 'QL_Steamworks_SetRichPresence( "lanIp", lanAddress );' in packed_publish_block
     assert "CL_Steam_SetMatchRichPresence();" in packed_publish_block
+    assert packed_publish_block.index("if ( publishLanIp && SteamClient_IsInitialized() ) {") < packed_publish_block.index(
+        "CL_Steam_SetMatchRichPresence();"
+    )
     assert 'Com_sprintf( payload, sizeof( payload ), "{\\"ip\\":%u,\\"port\\":%u}", packedIp, port );' in packed_publish_block
     assert "NET_GetLocalAddressIP( &localAddress )" in publish_start_block
     assert "packedIp = QL_Steamworks_ServerGetPublicIP();" in publish_start_block
@@ -4807,6 +5074,11 @@ def test_server_game_server_wrappers_reconstruct_mapped_server_slots() -> None:
     steamworks = (REPO_ROOT / "src/common/platform/platform_steamworks.c").read_text(encoding="utf-8")
     steamworks_h = (REPO_ROOT / "src/common/platform/platform_steamworks.h").read_text(encoding="utf-8")
     sv_main = (REPO_ROOT / "src/code/server/sv_main.c").read_text(encoding="utf-8")
+    hlil_part02 = (
+        REPO_ROOT
+        / "references/hlil/quakelive/quakelive_steam.exe/quakelive_steam.exe_hlil_split/quakelive_steam.exe_hlil_part02.txt"
+    ).read_text(encoding="utf-8")
+    aliases = json.loads((REPO_ROOT / "references/analysis/quakelive_symbol_aliases.json").read_text(encoding="utf-8"))
 
     platform_shutdown_block = _extract_function_block(steamworks, "void QL_Steamworks_Shutdown( void )")
     init_with_version_block = _extract_function_block(
@@ -4859,6 +5131,9 @@ def test_server_game_server_wrappers_reconstruct_mapped_server_slots() -> None:
     password_block = _extract_function_block(steamworks, "qboolean QL_Steamworks_ServerSetPasswordProtected( qboolean passwordProtected )")
     heartbeat_block = _extract_function_block(steamworks, "qboolean QL_Steamworks_ServerEnableHeartbeats( qboolean enable )")
     steam_id_block = _extract_function_block(steamworks, "qboolean QL_Steamworks_ServerGetSteamID( uint32_t *outIdLow, uint32_t *outIdHigh )")
+    unauth_user_block = _extract_function_block(
+        steamworks, "qboolean QL_Steamworks_ServerCreateUnauthenticatedUserConnection( uint32_t *outIdLow, uint32_t *outIdHigh )"
+    )
     game_tags_block = _extract_function_block(steamworks, "qboolean QL_Steamworks_ServerSetGameTags( const char *tags )")
     key_value_block = _extract_function_block(steamworks, "qboolean QL_Steamworks_ServerSetKeyValue( const char *key, const char *value )")
     key_values_block = _extract_function_block(steamworks, "qboolean QL_Steamworks_ServerSetKeyValuesFromInfoString( const char *infoString )")
@@ -4890,9 +5165,26 @@ def test_server_game_server_wrappers_reconstruct_mapped_server_slots() -> None:
     assert "#define QL_STEAM_GAMESERVER_DEFAULT_VERSION QL_RETAIL_VERSION" in steamworks_h
     assert "qboolean QL_Steamworks_ServerInitWithVersion( uint32_t ip, uint16_t gamePort, qboolean secure, qboolean dedicated, const char *version );" in steamworks_h
     assert "uint32_t QL_Steamworks_ServerGetAppID( void );" in steamworks_h
+    assert "qboolean QL_Steamworks_ServerCreateUnauthenticatedUserConnection( uint32_t *outIdLow, uint32_t *outIdHigh );" in steamworks_h
     assert "qboolean QL_Steamworks_ServerHandleIncomingPacket( const void *data, int dataSize, uint32_t ip, uint16_t port );" in steamworks_h
     assert "const char *QL_Steamworks_GetP2PTransportLabel( void );" in steamworks_h
     assert "const char *QL_Steamworks_GetP2PModernGapLabel( void );" in steamworks_h
+    assert aliases["quakelive_steam_srp"]["sub_465DF0"] == "SteamServer_CreateUnauthenticatedUserConnection"
+    assert "00465a60    char* sub_465a60(int32_t arg1 @ esi, char* arg2)" in hlil_part02
+    assert "00465a77  bool cond:0 = data_e30358 == 0" in hlil_part02
+    assert "00465a8b  if (not(cond:0) && result != 0)" in hlil_part02
+    assert "00465ab5          result = sub_4d9380(&i, &var_2008, &var_4008)" in hlil_part02
+    assert "00465add          result = (*(*SteamGameServer(var_8) + 0x50))(&var_2008, &var_4008)" in hlil_part02
+    assert "00465d50    uint32_t sub_465d50(void* arg1, void* arg2)" in hlil_part02
+    assert "00465d5a  if (data_e30358 == 0)" in hlil_part02
+    assert "00465d84  int32_t eax_2 = SteamGameServer()" in hlil_part02
+    assert "00465dad  return zx.d((*(*eax_2 + 0x94))" in hlil_part02
+    assert "00465db0    void sub_465db0(int32_t arg1)" in hlil_part02
+    assert "00465dba  if (data_e30358 != 0)" in hlil_part02
+    assert "00465dd7      (*(*SteamGameServer() + 0x9c))(arg1 == 1)" in hlil_part02
+    assert "00465df0    int32_t sub_465df0()" in hlil_part02
+    assert "00465dfd  if (data_e30358 == 0)" in hlil_part02
+    assert "00465e18  (*(*SteamGameServer() + 0x64))(&result)" in hlil_part02
     assert 'return "legacy ISteamNetworking";' in steamworks
     assert 'return "missing ISteamNetworkingSockets/ISteamNetworkingMessages adapter";' in steamworks
     assert 'QL_Steamworks_LoadOptionalSymbol( (void **)&state.SteamGameServerUtils, "SteamGameServerUtils" );' in steamworks
@@ -5000,16 +5292,26 @@ def test_server_game_server_wrappers_reconstruct_mapped_server_slots() -> None:
     assert "vtable[0x40 / 4]" in password_block
     assert "fn( gameServer, NULL, passwordProtected ? 1 : 0 );" in password_block
     assert "vtable[0x9c / 4]" in heartbeat_block
+    assert "if ( !state.gameServerInitialised ) {" in heartbeat_block
+    assert heartbeat_block.index("if ( !state.gameServerInitialised ) {") < heartbeat_block.index("gameServer = QL_Steamworks_GetGameServer();")
     assert "fn( gameServer, NULL, enable ? 1 : 0 );" in heartbeat_block
     assert "return qtrue;" in heartbeat_block
     assert "vtable[0x28 / 4]" in steam_id_block
     assert "if ( !fn( gameServer, NULL, &steamId ) ) {" in steam_id_block
     assert "*outIdLow = (uint32_t)( steamId.value & 0xffffffffu );" in steam_id_block
     assert "*outIdHigh = (uint32_t)( ( steamId.value >> 32 ) & 0xffffffffu );" in steam_id_block
+    assert "vtable[0x64 / 4]" in unauth_user_block
+    assert "if ( !state.gameServerInitialised ) {" in unauth_user_block
+    assert unauth_user_block.index("if ( !state.gameServerInitialised ) {") < unauth_user_block.index("gameServer = QL_Steamworks_GetGameServer();")
+    assert "if ( !fn( gameServer, NULL, &steamId ) ) {" in unauth_user_block
+    assert "return steamId.value != 0ull ? qtrue : qfalse;" in unauth_user_block
     assert "vtable[0x54 / 4]" in game_tags_block
     assert "fn( gameServer, NULL, tags );" in game_tags_block
     assert "vtable[0x50 / 4]" in key_value_block
     assert "fn( gameServer, NULL, key, value );" in key_value_block
+    assert "if ( !state.gameServerInitialised ) {" in key_values_block
+    assert key_values_block.index("if ( !state.gameServerInitialised ) {") < key_values_block.index("head = infoString;")
+    assert key_values_block.index("if ( !state.gameServerInitialised ) {") < key_values_block.index("Info_NextPair( &head, key, value );")
     assert "Info_NextPair( &head, key, value );" in key_values_block
     assert "QL_Steamworks_ServerSetKeyValue( key, value )" in key_values_block
     assert "vtable[0x6c / 4]" in user_data_block
@@ -5023,6 +5325,13 @@ def test_server_game_server_wrappers_reconstruct_mapped_server_slots() -> None:
     assert "vtable[0x98 / 4]" in outgoing_packet_block
     assert "return getPacket( gameServer, NULL, data, dataSize, outIp, outPort );" in outgoing_packet_block
     assert "from->type != NA_IP" in sv_incoming_packet_block
+    assert "if ( !QL_Steamworks_ServerIsInitialised() ) {" in sv_incoming_packet_block
+    assert sv_incoming_packet_block.index("if ( !QL_Steamworks_ServerIsInitialised() ) {") < sv_incoming_packet_block.index(
+        "packedIp = ( (uint32_t)from->ip[0] << 24 )"
+    )
+    assert sv_incoming_packet_block.index("if ( !QL_Steamworks_ServerIsInitialised() ) {") < sv_incoming_packet_block.index(
+        "QL_Steamworks_ServerHandleIncomingPacket( msg->data, msg->cursize, packedIp, from->port );"
+    )
     assert "packedIp = ( (uint32_t)from->ip[0] << 24 )" in sv_incoming_packet_block
     assert "| ( (uint32_t)from->ip[1] << 16 )" in sv_incoming_packet_block
     assert "| ( (uint32_t)from->ip[2] << 8 )" in sv_incoming_packet_block
@@ -5040,6 +5349,10 @@ def test_server_game_server_wrappers_reconstruct_mapped_server_slots() -> None:
 
 def test_server_frame_reconstructs_retail_steam_server_owner() -> None:
     sv_main = (REPO_ROOT / "src/code/server/sv_main.c").read_text(encoding="utf-8")
+    hlil_part02 = (
+        REPO_ROOT
+        / "references/hlil/quakelive/quakelive_steam.exe/quakelive_steam.exe_hlil_split/quakelive_steam.exe_hlil_part02.txt"
+    ).read_text(encoding="utf-8")
 
     networking_log_block = _extract_function_block(
         sv_main, "static void SV_LogSteamServerNetworkingLifecycle( const CSteamID *steamId, const char *stage, const char *detail ) {"
@@ -5054,11 +5367,19 @@ def test_server_frame_reconstructs_retail_steam_server_owner() -> None:
     assert "QL_Steamworks_GetP2PModernGapLabel()" in networking_log_block
     assert "SV_GetSteamServerProviderLabel()" in networking_log_block
     assert "SV_GetSteamServerPolicyLabel()" in networking_log_block
+    assert "00466850    int32_t sub_466850()" in hlil_part02
+    assert "0046686d  if (data_e30358 != 0)" in hlil_part02
+    assert "00466873      SteamGameServer_RunCallbacks()" in hlil_part02
+    assert "0046688a          sub_466260(0)" in hlil_part02
+    assert "00466928          if ((*(*SteamGameServerNetworking() + 4))(&var_424, 1) != 0)" in hlil_part02
+    assert "00466acb          for (i_2 = (*(*SteamGameServer() + 0x98))" in hlil_part02
     assert 'if ( !QL_Steamworks_ServerSendP2PPacket( &steamId, keepAlive, (uint32_t)sizeof( keepAlive ), 2, 16 ) ) {' in keepalive_block
     assert 'SV_LogSteamServerNetworkingLifecycle( &steamId, "keepalive", "send failed" );' in keepalive_block
     assert 'SV_LogSteamServerNetworkingLifecycle( NULL, "p2p-read", "read failed" );' in relay_block
     assert 'SV_LogSteamServerNetworkingLifecycle( &remoteId, "p2p-relay", "sender not found" );' in relay_block
     assert 'SV_LogSteamServerNetworkingLifecycle( &clientId, "p2p-relay", "relay send failed" );' in relay_block
+    assert "if ( !QL_Steamworks_ServerIsInitialised() ) {" in helper_block
+    assert helper_block.index("if ( !QL_Steamworks_ServerIsInitialised() ) {") < helper_block.index("QL_Steamworks_RunServerCallbacks();")
     assert "QL_Steamworks_RunServerCallbacks();" in helper_block
     assert "SV_SteamServerSendKeepAlive();" in helper_block
     assert "SV_SteamServerRelayP2PPackets();" in helper_block
@@ -5516,6 +5837,10 @@ def test_server_auth_lifecycle_trace_documents_pending_to_callback_contract() ->
 
 def test_server_callback_auth_owner_reconstructs_retail_steam_gameserver_bundle() -> None:
     sv_client = (REPO_ROOT / "src/code/server/sv_client.c").read_text(encoding="utf-8")
+    hlil_part02 = (
+        REPO_ROOT
+        / "references/hlil/quakelive/quakelive_steam.exe/quakelive_steam.exe_hlil_split/quakelive_steam.exe_hlil_part02.txt"
+    ).read_text(encoding="utf-8")
     stub_section = sv_client.split("#else", 1)[1]
 
     compatibility_block = _extract_function_block(
@@ -5585,12 +5910,44 @@ def test_server_callback_auth_owner_reconstructs_retail_steam_gameserver_bundle(
     assert 'SV_LogSteamServerCallbackLifecycle( "connected", "published identity and state refresh" );' in connected_block
     assert "SV_SteamServerPublishIdentity();" in connected_block
     assert "SV_SteamServerUpdatePublishedState( qtrue );" in connected_block
-    assert 'SV_LogSteamServerCallbackLifecycle( "connect_failure", "ignored null callback payload" );' in failure_block
-    assert 'Com_sprintf( detail, sizeof( detail ), "connect failure result=%d", event->result );' in failure_block
-    assert 'SV_LogSteamServerCallbackLifecycle( "connect_failure", detail );' in failure_block
-    assert 'SV_LogSteamServerCallbackLifecycle( "disconnected", "ignored null callback payload" );' in disconnected_block
-    assert 'Com_sprintf( detail, sizeof( detail ), "disconnected result=%d", event->result );' in disconnected_block
-    assert 'SV_LogSteamServerCallbackLifecycle( "disconnected", detail );' in disconnected_block
+    assert "SV_SteamStats_RequerySessions();" in connected_block
+    assert "serverInfo = Cvar_InfoString( CVAR_SERVERINFO );" in connected_block
+    assert "QL_Steamworks_ServerSetKeyValuesFromInfoString( serverInfo );" in connected_block
+    assert connected_block.index("SV_SteamServerPublishIdentity();") < connected_block.index(
+        "SV_SteamServerUpdatePublishedState( qtrue );"
+    )
+    assert connected_block.index("SV_SteamServerUpdatePublishedState( qtrue );") < connected_block.index(
+        "SV_SteamStats_RequerySessions();"
+    )
+    assert connected_block.index("SV_SteamStats_RequerySessions();") < connected_block.index(
+        "QL_Steamworks_ServerSetKeyValuesFromInfoString( serverInfo );"
+    )
+    assert "00466800    char* sub_466800()" in hlil_part02
+    assert '00466805  sub_4c9860(esi, "Connected to Steam servers\\n")' in hlil_part02
+    assert "00466812  data_e30354 = 1" in hlil_part02
+    assert "00466820  if (*(result + 0x30) == 0)" in hlil_part02
+    assert "00466822  sub_465b00()" in hlil_part02
+    assert "00466829  sub_466260(1)" in hlil_part02
+    assert "00466830  sub_4cdbe0(4)" in hlil_part02
+    assert "00466836  return sub_465a60(esi, &data_1206288)" in hlil_part02
+    assert "00465c10    int32_t sub_465c10()" in hlil_part02
+    assert "00465c15  data_e30354 = 0" in hlil_part02
+    assert '00465c25  return sub_4c9860(esi, "Failed to connect to Steam serve' in hlil_part02
+    assert "00465c30    int32_t sub_465c30()" in hlil_part02
+    assert "00465c35  data_e30354 = 0" in hlil_part02
+    assert '00465c45  return sub_4c9860(esi, "Disconnected from Steam servers\\n")' in hlil_part02
+    assert "00466e05  arg1[9] = sub_465c10" in hlil_part02
+    assert "00466e37  arg1[0xe] = sub_465c30" in hlil_part02
+    assert "(void)event;" in failure_block
+    assert "sv_steamServerConnected = qfalse;" in failure_block
+    assert 'Com_Printf( "Failed to connect to Steam servers\\n" );' in failure_block
+    assert "event->result" not in failure_block
+    assert "ignored null callback payload" not in failure_block
+    assert "(void)event;" in disconnected_block
+    assert "sv_steamServerConnected = qfalse;" in disconnected_block
+    assert 'Com_Printf( "Disconnected from Steam servers\\n" );' in disconnected_block
+    assert "event->result" not in disconnected_block
+    assert "ignored null callback payload" not in disconnected_block
     assert 'SV_LogSteamServerCallbackLifecycle( "validate_auth_ticket_response", "ignored null callback payload" );' in auth_callback_block
     assert 'Com_sprintf( detail, sizeof( detail ), "ignored auth response for missing client %llu",' in auth_callback_block
     assert 'SV_LogSteamServerCallbackLifecycle( "validate_auth_ticket_response", detail );' in auth_callback_block

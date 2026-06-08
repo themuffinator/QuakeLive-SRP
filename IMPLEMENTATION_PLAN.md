@@ -16122,3 +16122,201 @@ to `Com_InitSteamClientForFilesystem()` before its platform-service refresh, so
 build-script launches do not probe Steam in the source-only early filesystem
 SteamID path. The evidence is recorded in
 `docs/reverse-engineering/quakelive_steam_mapping_round_434.md`.
+
+### Task 127: Lazy Steam service refresh guard reconstruction [COMPLETED]
+Parity estimate: **before 67% -> after 93%** for the scoped lazy Steam refresh
+lane. This pass added `SteamClient_ShouldRefreshPlatformServices()` and applied
+it before source-only lazy `QL_RefreshPlatformServices()` calls in the SteamID,
+auth-ticket, subscription, UGC download-info, IP-country, callback-recovery, and
+frame-pump paths, keeping `com_build` launches aligned with retail retained
+initialized-flag semantics. The evidence is recorded in
+`docs/reverse-engineering/quakelive_steam_mapping_round_435.md`.
+
+### Task 128: Steam frame-pump initialized-state owner reconstruction [COMPLETED]
+Parity estimate: **before 78% -> after 96%** for the scoped Steam frame-pump
+owner lane. This pass removed source-only `QL_RefreshPlatformServices()` and
+`SteamClient_SetInitializedState()` calls from `SteamClient_Frame()` and kept
+callback recovery from re-latching Steam state, matching the retail
+`data_e30218 != 0` gate before `SteamAPI_RunCallbacks()`, voice send, stats
+report packet drain, and voice packet drain. The evidence is recorded in
+`docs/reverse-engineering/quakelive_steam_mapping_round_436.md`.
+
+### Task 129: Steam identity bootstrap retained-state reconstruction [COMPLETED]
+Parity estimate: **before 74% -> after 95%** for the scoped client identity
+bootstrap owner lane. This pass removed direct `QL_Steamworks_Init()` calls
+from `SteamClient_SyncPersonaNameCvar()` and `CL_Steam_SeedCountryCvar()`,
+gated both helpers on the retained `SteamClient_IsInitialized()` state after
+the retail `com_build` skip, and kept the retail `name=anon` persona fallback
+when Steam identity is unavailable. The evidence is recorded in
+`docs/reverse-engineering/quakelive_steam_mapping_round_437.md`.
+
+### Task 130: Steam wrapper retained-state owner reconstruction [COMPLETED]
+Parity estimate: **before 72% -> after 94%** for the scoped small Steam wrapper
+owner lane. This pass added `SteamClient_InitForFilesystem()` as the explicit
+source-only early filesystem Steam owner, moved the pre-filesystem platform
+refresh into that client-owned helper, and removed wrapper-level
+`QL_RefreshPlatformServices()` / `SteamClient_SetInitializedState()` calls from
+the SteamID, auth-ticket, subscription, UGC download-info, and country wrapper
+thunks. The evidence is recorded in
+`docs/reverse-engineering/quakelive_steam_mapping_round_438.md`.
+
+### Task 131: Steam client shutdown resource-callback owner reconstruction [COMPLETED]
+Parity estimate: **before 78% -> after 95%** for the scoped Steam client
+shutdown/resource callback owner lane. This pass rechecked the retail
+`SteamAPI_Shutdown` thunk at `0x00460540`, the `SteamDataSource_Shutdown`
+callback unregister path at `0x00464440`, and the source platform avatar
+callback owner, then moved `CL_ShutdownSteamResources()` into the public
+`SteamAPI_Shutdown()` wrapper ahead of `CL_Steam_ShutdownCallbacks()` and
+`QL_Steamworks_Shutdown()`. The evidence is recorded in
+`docs/reverse-engineering/quakelive_steam_mapping_round_440.md`.
+
+### Task 132: Steam game-start rich-presence initialized-gate reconstruction [COMPLETED]
+Parity estimate: **before 82% -> after 96%** for the scoped `game.start` /
+rich-presence runtime lane. This pass rechecked retail `sub_4F38F0`, found the
+demo playback early return before `"game.start"` publication, and matched the
+`lanIp` and `"Playing a match"` rich-presence writes to the retained
+`SteamClient_IsInitialized()` gate. The source now suppresses the packed
+browser event during demo playback and only writes adjacent Steam presence
+state when the retained Steam client initialization flag is live. The evidence
+is recorded in
+`docs/reverse-engineering/quakelive_steam_mapping_round_442.md`.
+
+### Task 133: SteamClient_Init post-success side-effect boundary reconstruction [COMPLETED]
+Parity estimate: **before 84% -> after 97%** for the scoped
+`SteamClient_Init` post-success bootstrap lane. This pass rechecked retail
+`sub_461500`, confirmed the failed `SteamAPI_Init()` return before callback,
+lobby, voice, stats, and main-menu rich-presence side effects, and moved the
+source fallback branch to return immediately when the retained
+`SteamClient_IsInitialized()` state is false. The evidence is recorded in
+`docs/reverse-engineering/quakelive_steam_mapping_round_443.md`.
+
+### Task 134: SteamClient_Init terminal success diagnostic reconstruction [COMPLETED]
+Parity estimate: **before 90% -> after 99%** for the scoped
+`SteamClient_Init` terminal success diagnostic lane. This pass rechecked retail
+`sub_461500` at `0x004615CA`, confirmed the `"Steam API initialized.\n"` log
+after the initial `"At the main menu"` rich-presence write, and added the
+matching client-owner success marker after `CL_Steam_SetMainMenuRichPresence()`
+in the source bootstrap path. The evidence is recorded in
+`docs/reverse-engineering/quakelive_steam_mapping_round_445.md`.
+
+### Task 135: Steam connect_lobby command and lobby bootstrap return reconstruction [COMPLETED]
+Parity estimate: **before 76% -> after 99%** for the scoped `connect_lobby`
+command handler lane, and **before 88% -> after 97%** for the scoped
+`SteamLobby_Init` cvar/command/return boundary. This pass rechecked retail
+`sub_464AA0` and the `SteamLobby_Init` registration at `0x00465840`, removed
+source-only argc and provider guards from `CL_Steam_ConnectLobby_f()`, stopped
+using the initial lobby callback registration result as a main Steam bootstrap
+gate, and pinned the lobby cvar flags / command registration against retail
+HLIL. The evidence is recorded in
+`docs/reverse-engineering/quakelive_steam_mapping_round_447.md`.
+
+### Task 136: Steam lobby chat-message entry-type gate reconstruction [COMPLETED]
+Parity estimate: **before 82% -> after 99%** for the scoped lobby chat-message
+publish gate. This pass rechecked retail `sub_4645A0`, confirmed that
+`lobby.%s.chat` is published only when Steam's lobby chat entry type is `1`,
+added the matching source gate in `CL_Steam_Lobby_OnLobbyChatMessage()`, and
+pinned the HLIL branch / publish instruction in the Steam platform tests. The
+evidence is recorded in
+`docs/reverse-engineering/quakelive_steam_mapping_round_448.md`.
+
+### Task 137: Steam browser lobby method initialized-gate reconstruction [COMPLETED]
+Parity estimate: **before 78% -> after 97%** for the scoped browser-facing
+Steam lobby method initialized-state gate. This pass rechecked retail
+`sub_4649B0`, `sub_4649E0`, `sub_465630`, `sub_464AC0`, `sub_464B10`, and
+`sub_464BB0`, confirmed each route begins at the retained `sub_460510`
+Steam-client initialized gate before SteamMatchmaking/SteamFriends calls, and
+added the matching source gates to the lobby/social browser wrappers. The
+evidence is recorded in
+`docs/reverse-engineering/quakelive_steam_mapping_round_450.md`.
+
+### Task 138: Steam browser non-lobby method initialized-boundary reconstruction [COMPLETED]
+Parity estimate: **before 74% -> after 94%** for the scoped browser-facing
+non-lobby Steam method initialized boundary. This pass rechecked retail
+`sub_431E50` qz_instance dispatch cases for `OpenSteamOverlayURL`,
+`RequestUserStats`, `ActivateGameOverlayToUser`, and `GetAllUGC`, plus mapped
+`sub_460DC0` (`SteamWorkshop_GetAllUGC`), then added the retained source
+initialization gate before the source wrappers reach SteamFriends,
+SteamUserStats, or SteamUGC. The evidence is recorded in
+`docs/reverse-engineering/quakelive_steam_mapping_round_451.md`.
+
+### Task 139: Steam browser native server-list retained-state reconstruction [COMPLETED]
+Parity estimate: **before 80% -> after 95%** for the scoped native
+SteamMatchmakingServers list/detail availability boundary. This pass rechecked
+retail `sub_462E80`, `sub_462EB0`, `sub_463090`, and `sub_4630B0`, confirmed
+the retained JSBrowser owner directly uses SteamMatchmakingServers refresh,
+cancel, `gamedir=baseq3` filtered-list, and detail-request paths, and added the
+retained `SteamClient_IsInitialized()` gate to the source native-list
+availability guard before native list/detail requests can start. The evidence
+is recorded in
+`docs/reverse-engineering/quakelive_steam_mapping_round_452.md`.
+
+### Task 140: Steam browser favorite-server retained-state reconstruction [COMPLETED]
+Parity estimate: **before 82% -> after 96%** for the scoped browser
+`SetFavoriteServer` retained-state boundary. This pass rechecked retail
+`sub_431E50` qz_instance dispatch case `0x13`, confirmed the browser dispatcher
+uses SteamUtils and SteamMatchmaking directly for add/remove favorite-game
+slots after the incoming argument conversion, and added the retained
+`SteamClient_IsInitialized()` gate before the source web-host favorite wrapper
+can reach `QL_Steamworks_SetFavoriteServerForApp`. The evidence is recorded in
+`docs/reverse-engineering/quakelive_steam_mapping_round_453.md`.
+
+### Task 141: Steam GameServer frame retained-state reconstruction [COMPLETED]
+Parity estimate: **before 84% -> after 97%** for the scoped Steam GameServer
+packet/frame retained-state boundary. This pass rechecked retail `sub_465D50`
+and `sub_466850`, confirmed both native packet ingress and the server callback /
+P2P maintenance loop are gated by the retained `data_e30358` GameServer
+initialized flag before reaching SteamGameServer, SteamGameServerNetworking, or
+SteamGameServer_RunCallbacks, and added the matching source owner guards in
+`SV_SteamServerHandleIncomingPacket` and `SV_SteamServerNetworkingFrame`. The
+evidence is recorded in
+`docs/reverse-engineering/quakelive_steam_mapping_round_454.md`.
+
+### Task 142: Steam GameServer key-value retained-state reconstruction [COMPLETED]
+Parity estimate: **before 86% -> after 98%** for the scoped Steam GameServer
+serverinfo key-value publication boundary. This pass rechecked retail
+`sub_465A60`, confirmed the info-string walker checks the retained
+`data_e30358` GameServer initialized flag before splitting serverinfo pairs or
+calling SteamGameServer vtable slot `0x50`, and added the matching source guard
+to `QL_Steamworks_ServerSetKeyValuesFromInfoString`. The evidence is recorded
+in `docs/reverse-engineering/quakelive_steam_mapping_round_455.md`.
+
+### Task 143: Steam GameServer heartbeat retained-state reconstruction [COMPLETED]
+Parity estimate: **before 88% -> after 98%** for the scoped Steam GameServer
+heartbeat publication boundary. This pass rechecked retail `sub_465DB0`,
+confirmed it checks the retained `data_e30358` GameServer initialized flag
+before calling SteamGameServer vtable slot `0x9C`, and added the matching
+source guard to `QL_Steamworks_ServerEnableHeartbeats` before it reaches
+`QL_Steamworks_GetGameServer`. The evidence is recorded in
+`docs/reverse-engineering/quakelive_steam_mapping_round_456.md`.
+
+### Task 144: Steam GameServer unauthenticated client identity reconstruction [COMPLETED]
+Parity estimate: **before 45% -> after 96%** for the scoped
+unauthenticated server-client identity wrapper. This pass rechecked retail
+`sub_465DF0` and its `SV_BotAllocateClient` call site, corrected the alias away
+from public server identity publication, reconstructed the retained
+`data_e30358`-gated SteamGameServer vtable slot `0x64` wrapper as
+`QL_Steamworks_ServerCreateUnauthenticatedUserConnection`, and wired bot/local
+server-owned client allocation through that source bridge. The evidence is
+recorded in `docs/reverse-engineering/quakelive_steam_mapping_round_458.md`.
+
+### Task 145: Steam GameServer connected serverinfo replay reconstruction [COMPLETED]
+Parity estimate: **before 84% -> after 97%** for the scoped
+connected-success Steam GameServer publication sequence. This pass rechecked
+retail `sub_466800`, confirmed the connect callback marks the Steam server
+connected flag, publishes identity, pushes a full state refresh, runs the
+dedicated/server callback continuation, and finally replays the serverinfo
+key/value batch through `sub_465A60`. The source callback now mirrors that
+reconnect path by republishing `CVAR_SERVERINFO` with
+`QL_Steamworks_ServerSetKeyValuesFromInfoString` after the identity/state/stats
+refresh. The evidence is recorded in
+`docs/reverse-engineering/quakelive_steam_mapping_round_462.md`.
+
+### Task 146: Steam GameServer negative callback log reconstruction [COMPLETED]
+Parity estimate: **before 72% -> after 98%** for the scoped
+connect-failure/disconnect callback lane. This pass rechecked retail
+`sub_465C10` and `sub_465C30`, confirmed both callbacks clear the retained
+Steam server connected flag and emit fixed log messages without reading the
+Steam callback payload/result fields, and updated the source callbacks to
+ignore the adapter payload while preserving the wrapper signatures. The
+evidence is recorded in
+`docs/reverse-engineering/quakelive_steam_mapping_round_464.md`.

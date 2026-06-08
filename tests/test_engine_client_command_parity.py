@@ -556,7 +556,7 @@ def test_client_steam_command_registration_and_identity_wiring_match_retail_surf
 	steam_callbacks_init_block = _extract_function_block(cl_main, "static qboolean SteamCallbacks_Init( void ) {")
 	steam_micro_callbacks_init_block = _extract_function_block(cl_main, "static qboolean SteamMicroCallbacks_Init( void ) {")
 	steam_lobby_callbacks_init_block = _extract_function_block(cl_main, "static qboolean SteamLobbyCallbacks_Init( void ) {")
-	steam_lobby_init_block = _extract_function_block(cl_main, "static qboolean SteamLobby_Init( void ) {")
+	steam_lobby_init_block = _extract_function_block(cl_main, "static void SteamLobby_Init( void ) {")
 	identity_block = _extract_function_block(
 		cl_main, "static qboolean CL_CopyClientIdentity( int clientNum, cgameClientIdentity_t *identity ) {"
 	)
@@ -592,7 +592,9 @@ def test_client_steam_command_registration_and_identity_wiring_match_retail_surf
 	assert "return QL_Steamworks_RegisterClientCallbacks( &clientBindings );" in steam_callbacks_init_block
 	assert "return QL_Steamworks_RegisterMicroCallbacks( &microBindings );" in steam_micro_callbacks_init_block
 	assert "return QL_Steamworks_RegisterLobbyCallbacks( &lobbyBindings );" in steam_lobby_callbacks_init_block
-	assert "callbacksRegistered = SteamLobbyCallbacks_Init();" in steam_lobby_init_block
+	assert "SteamLobbyCallbacks_Init();" in steam_lobby_init_block
+	assert "callbacksRegistered" not in steam_lobby_init_block
+	assert "return callbacksRegistered;" not in steam_lobby_init_block
 	assert 'Cvar_Get( "lobby_autoconnect", "", CVAR_TEMP );' in steam_lobby_init_block
 	assert 'Cvar_Get( "steam_maxLobbyClients", "16", CVAR_ARCHIVE );' in steam_lobby_init_block
 	assert 'Cmd_AddCommand ("connect_lobby", CL_Steam_ConnectLobby_f );' in steam_lobby_init_block

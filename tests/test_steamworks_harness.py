@@ -716,6 +716,12 @@ def steamworks_harness(request: pytest.FixtureRequest, tmp_path_factory: pytest.
     lib.QLR_Steamworks_ServerGetSteamID.argtypes = [ctypes.POINTER(ctypes.c_uint32), ctypes.POINTER(ctypes.c_uint32)]
     lib.QLR_Steamworks_ServerGetSteamID.restype = ctypes.c_int
 
+    lib.QLR_Steamworks_ServerCreateUnauthenticatedUserConnection.argtypes = [
+        ctypes.POINTER(ctypes.c_uint32),
+        ctypes.POINTER(ctypes.c_uint32),
+    ]
+    lib.QLR_Steamworks_ServerCreateUnauthenticatedUserConnection.restype = ctypes.c_int
+
     lib.QLR_Steamworks_ServerSetGameTags.argtypes = [ctypes.c_char_p]
     lib.QLR_Steamworks_ServerSetGameTags.restype = ctypes.c_int
 
@@ -904,6 +910,9 @@ def steamworks_harness(request: pytest.FixtureRequest, tmp_path_factory: pytest.
         lib.QLR_SteamworksMock_SetSteamGameServerId.argtypes = [ctypes.c_uint64]
         lib.QLR_SteamworksMock_SetSteamGameServerId.restype = None
 
+        lib.QLR_SteamworksMock_SetSteamGameServerUnauthenticatedUserId.argtypes = [ctypes.c_uint64]
+        lib.QLR_SteamworksMock_SetSteamGameServerUnauthenticatedUserId.restype = None
+
         lib.QLR_SteamworksMock_SetAvatarHandles.argtypes = [ctypes.c_int, ctypes.c_int, ctypes.c_int]
         lib.QLR_SteamworksMock_SetAvatarHandles.restype = None
 
@@ -1091,6 +1100,9 @@ def steamworks_harness(request: pytest.FixtureRequest, tmp_path_factory: pytest.
 
         lib.QLR_SteamworksMock_GetSteamGameServerLastUserDataId.argtypes = []
         lib.QLR_SteamworksMock_GetSteamGameServerLastUserDataId.restype = ctypes.c_uint64
+
+        lib.QLR_SteamworksMock_GetSteamGameServerUnauthenticatedUserCalls.argtypes = []
+        lib.QLR_SteamworksMock_GetSteamGameServerUnauthenticatedUserCalls.restype = ctypes.c_int
 
         lib.QLR_SteamworksMock_GetSteamGameServerLastUserDataScore.argtypes = []
         lib.QLR_SteamworksMock_GetSteamGameServerLastUserDataScore.restype = ctypes.c_uint32
@@ -3165,6 +3177,8 @@ def test_game_server_helpers_use_mapped_server_slots(steamworks_harness: tuple[c
     lib, enabled = steamworks_harness
     steam_id_low = ctypes.c_uint32()
     steam_id_high = ctypes.c_uint32()
+    unauth_id_low = ctypes.c_uint32()
+    unauth_id_high = ctypes.c_uint32()
 
     if not enabled:
         assert not lib.QLR_Steamworks_Init()
@@ -3182,6 +3196,10 @@ def test_game_server_helpers_use_mapped_server_slots(steamworks_harness: tuple[c
         assert not lib.QLR_Steamworks_ServerSetMapName(b"campgrounds")
         assert not lib.QLR_Steamworks_ServerSetPasswordProtected(1)
         assert not lib.QLR_Steamworks_ServerGetSteamID(ctypes.byref(steam_id_low), ctypes.byref(steam_id_high))
+        assert not lib.QLR_Steamworks_ServerCreateUnauthenticatedUserConnection(
+            ctypes.byref(unauth_id_low),
+            ctypes.byref(unauth_id_high),
+        )
         assert not lib.QLR_Steamworks_ServerSetGameTags(b"duel,instagib")
         assert not lib.QLR_Steamworks_ServerSetKeyValue(b"g_redScore", b"5")
         assert not lib.QLR_Steamworks_ServerSetKeyValuesFromInfoString(b"\\mapname\\campgrounds")
@@ -3194,6 +3212,7 @@ def test_game_server_helpers_use_mapped_server_slots(steamworks_harness: tuple[c
     lib.QLR_SteamworksMock_Reset()
     lib.QLR_SteamworksMock_PrimeState()
     lib.QLR_SteamworksMock_SetSteamGameServerId(0x0FEDCBA987654321)
+    lib.QLR_SteamworksMock_SetSteamGameServerUnauthenticatedUserId(0x0011223344556677)
     lib.QLR_SteamworksMock_SetSteamGameServerPublicIP(0x11223344)
 
     assert lib.QLR_Steamworks_Init()
@@ -3214,6 +3233,12 @@ def test_game_server_helpers_use_mapped_server_slots(steamworks_harness: tuple[c
     assert lib.QLR_Steamworks_ServerGetSteamID(ctypes.byref(steam_id_low), ctypes.byref(steam_id_high))
     assert steam_id_low.value == 0x87654321
     assert steam_id_high.value == 0x0FEDCBA9
+    assert lib.QLR_Steamworks_ServerCreateUnauthenticatedUserConnection(
+        ctypes.byref(unauth_id_low),
+        ctypes.byref(unauth_id_high),
+    )
+    assert unauth_id_low.value == 0x44556677
+    assert unauth_id_high.value == 0x00112233
     assert lib.QLR_Steamworks_ServerSetGameTags(b"duel,instagib")
     assert lib.QLR_Steamworks_ServerSetKeyValue(b"g_redScore", b"5")
     assert lib.QLR_Steamworks_ServerSetKeyValuesFromInfoString(b"\\gametype\\ca\\mapname\\campgrounds")
@@ -3245,6 +3270,7 @@ def test_game_server_helpers_use_mapped_server_slots(steamworks_harness: tuple[c
     assert lib.QLR_SteamworksMock_GetSteamGameServerLastMapName() == b"campgrounds"
     assert lib.QLR_SteamworksMock_GetSteamGameServerPasswordCalls() == 1
     assert lib.QLR_SteamworksMock_GetSteamGameServerLastPasswordProtected() == 1
+    assert lib.QLR_SteamworksMock_GetSteamGameServerUnauthenticatedUserCalls() == 1
     assert lib.QLR_SteamworksMock_GetSteamGameServerGameTagsCalls() == 1
     assert lib.QLR_SteamworksMock_GetSteamGameServerLastGameTags() == b"duel,instagib"
     assert lib.QLR_SteamworksMock_GetSteamGameServerUserDataCalls() == 1

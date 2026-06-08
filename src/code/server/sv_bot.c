@@ -23,6 +23,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 #include "server.h"
 #include "../game/botlib.h"
+#include "../../common/platform/platform_steamworks.h"
 
 typedef struct bot_debugpoly_s
 {
@@ -37,6 +38,45 @@ int bot_maxdebugpolys;
 
 extern botlib_export_t  *botlib_export;
 int		bot_enable;
+
+#if SV_HAS_PLATFORM_AUTH
+/*
+===============
+SV_BotAssignSteamIdentity
+
+Assigns the retail unauthenticated Steam identity used by server-owned clients.
+===============
+*/
+static void SV_BotAssignSteamIdentity( client_t *cl ) {
+	uint32_t steamIdLow;
+	uint32_t steamIdHigh;
+	unsigned long long steamId;
+
+	if ( !cl ) {
+		return;
+	}
+
+	cl->platformAuthPending = qfalse;
+	cl->platformAuthSucceeded = qfalse;
+	cl->platformAuthSessionActive = qfalse;
+	cl->platformAuthLabel[0] = '\0';
+	cl->platformAuthToken[0] = '\0';
+	cl->platformAuthResult[0] = '\0';
+	cl->platformAuthOutcome[0] = '\0';
+	cl->platformAuthMessage[0] = '\0';
+	cl->platformSteamId[0] = '\0';
+
+	if ( !QL_Steamworks_ServerCreateUnauthenticatedUserConnection( &steamIdLow, &steamIdHigh ) ) {
+		return;
+	}
+
+	steamId = ( (unsigned long long)steamIdHigh << 32 ) | steamIdLow;
+	Com_sprintf( cl->platformSteamId, sizeof( cl->platformSteamId ), "%llu", steamId );
+	Q_strncpyz( cl->platformAuthLabel, "steam", sizeof( cl->platformAuthLabel ) );
+	Q_strncpyz( cl->platformAuthResult, "unauthenticated", sizeof( cl->platformAuthResult ) );
+	Q_strncpyz( cl->platformAuthOutcome, "local-server-client", sizeof( cl->platformAuthOutcome ) );
+}
+#endif
 
 /*
 ===============
@@ -110,6 +150,10 @@ int SV_BotAllocateClient(void) {
 	cl->lastConnectTime = svs.time;
 	cl->netchan.remoteAddress.type = NA_BOT;
 	cl->rate = 16384;
+
+#if SV_HAS_PLATFORM_AUTH
+	SV_BotAssignSteamIdentity( cl );
+#endif
 
 	SV_BotRefreshEntityBotFlag( cl );
 

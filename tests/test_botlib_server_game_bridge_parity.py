@@ -195,6 +195,11 @@ def test_server_bot_source_matches_retail_bridge_lifecycle_shape() -> None:
 	console = _extract_function_block(sv_bot, "int SV_BotGetConsoleMessage")
 	snapshot = _extract_function_block(sv_bot, "int SV_BotGetSnapshotEntity")
 
+	assert '#include "../../common/platform/platform_steamworks.h"' in sv_bot
+	assert "static void SV_BotAssignSteamIdentity( client_t *cl )" in sv_bot
+	assert "QL_Steamworks_ServerCreateUnauthenticatedUserConnection( &steamIdLow, &steamIdHigh )" in sv_bot
+	assert 'Com_sprintf( cl->platformSteamId, sizeof( cl->platformSteamId ), "%llu", steamId );' in sv_bot
+
 	for anchor in (
 		"for ( i = 0, cl = svs.clients; i < sv_maxclients->integer; i++, cl++ )",
 		"if ( i == sv_maxclients->integer )",
@@ -207,6 +212,7 @@ def test_server_bot_source_matches_retail_bridge_lifecycle_shape() -> None:
 		"cl->lastConnectTime = svs.time;",
 		"cl->netchan.remoteAddress.type = NA_BOT;",
 		"cl->rate = 16384;",
+		"SV_BotAssignSteamIdentity( cl );",
 		"SV_BotRefreshEntityBotFlag( cl );",
 		"return i;",
 	):
@@ -358,6 +364,9 @@ def test_server_game_botlib_bridge_hlil_shapes_are_pinned() -> None:
 		"004dcd61  int32_t* eax_2 = sub_4e10b0(result)",
 		"004dcd6e  *esi = 4",
 		"004dcd8d  esi[0x56b5] = 0x4000",
+		"004dcd97  eax_3, edx = sub_465df0()",
+		"004dcd9c  esi[0x96d8] = eax_3",
+		"004dcda5  esi[0x96d9] = edx",
 		"004dcdb0    void* sub_4dcdb0(int32_t arg1)",
 		"004dcde1          *esi_2 = 0",
 		"004dcdf8              *(esi_3 + 0x1e0) &= 0xfffffff7",

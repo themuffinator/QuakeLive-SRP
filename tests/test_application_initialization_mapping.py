@@ -301,9 +301,10 @@ def test_policy_adjusted_common_client_server_wiring_matches_mapped_retail_chain
 	assert 'Cvar_VariableIntegerValue( "dedicated" )' in steam_filesystem_block
 	assert 'Cvar_VariableIntegerValue( "com_build" )' in steam_filesystem_block
 	assert steam_filesystem_block.index('Cvar_VariableIntegerValue( "com_build" )') < steam_filesystem_block.index(
-		"QL_RefreshPlatformServices();"
+		"SteamClient_InitForFilesystem();"
 	)
-	assert "QL_RefreshPlatformServices();" in steam_filesystem_block
+	assert "SteamClient_InitForFilesystem();" in steam_filesystem_block
+	assert "QL_RefreshPlatformServices();" not in steam_filesystem_block
 	assert common_init.index("Sys_Init();") < common_init.index("Netchan_Init")
 	assert common_init.index("Netchan_Init") < common_init.index("VM_Init();")
 	assert common_init.index("VM_Init();") < common_init.index("SV_Init();")

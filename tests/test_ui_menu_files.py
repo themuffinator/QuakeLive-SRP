@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import csv
 import json
 import re
 from pathlib import Path
@@ -19,6 +20,33 @@ UI_HLIL_PART01 = (
     / "uix86.dll_hlil_split"
     / "uix86.dll_hlil_part01.txt"
 )
+QL_STEAM_HLIL_PART04 = (
+    REPO_ROOT
+    / "references"
+    / "hlil"
+    / "quakelive"
+    / "quakelive_steam.exe"
+    / "quakelive_steam.exe_hlil_split"
+    / "quakelive_steam.exe_hlil_part04.txt"
+)
+QL_STEAM_HLIL_PART07 = (
+    REPO_ROOT
+    / "references"
+    / "hlil"
+    / "quakelive"
+    / "quakelive_steam.exe"
+    / "quakelive_steam.exe_hlil_split"
+    / "quakelive_steam.exe_hlil_part07.txt"
+)
+QL_STEAM_FUNCTIONS = (
+    REPO_ROOT
+    / "references"
+    / "reverse-engineering"
+    / "ghidra"
+    / "quakelive_steam"
+    / "functions.csv"
+)
+SYMBOL_ALIASES = REPO_ROOT / "references" / "analysis" / "quakelive_symbol_aliases.json"
 
 
 def _extract_define(text: str, name: str) -> str:
@@ -1822,6 +1850,13 @@ def test_ui_native_import_table_matches_recovered_retail_slots() -> None:
     cl_ui = (REPO_ROOT / "src/code/client/cl_ui.c").read_text(encoding="utf-8")
     ui_public = (REPO_ROOT / "src/code/ui/ui_public.h").read_text(encoding="utf-8")
     ql_ui_imports = (REPO_ROOT / "src/code/client/ql_ui_imports.inc").read_text(encoding="utf-8")
+    aliases = json.loads(SYMBOL_ALIASES.read_text(encoding="utf-8"))["quakelive_steam_srp"]
+    function_rows = {
+        row["entry"].lower(): row
+        for row in csv.DictReader(QL_STEAM_FUNCTIONS.read_text(encoding="utf-8").splitlines())
+    }
+    steam_hlil = QL_STEAM_HLIL_PART04.read_text(encoding="utf-8")
+    steam_table_hlil = QL_STEAM_HLIL_PART07.read_text(encoding="utf-8")
 
     assert "UI_QL_IMPORT_R_REGISTERFONT = 70," in ui_public
     assert "UI_QL_IMPORT_DRAW_SCALED_TEXT = 94," in ui_public
@@ -1846,6 +1881,8 @@ def test_ui_native_import_table_matches_recovered_retail_slots() -> None:
         "static unsigned long long QDECL QL_UI_trap_MeasureText(",
         "static void QDECL QL_UI_trap_GetItemDownloadInfo(",
         "static ql_import_f ql_ui_imports[UI_QL_NATIVE_IMPORT_COUNT];",
+        "ql_ui_imports[UI_QL_IMPORT_S_STARTLOCALSOUND] = (ql_import_f)QL_UI_trap_S_StartLocalSound;",
+        "ql_ui_imports[UI_QL_IMPORT_S_REGISTERSOUND] = (ql_import_f)QL_UI_trap_S_RegisterSound_QL;",
         "ql_ui_imports[UI_QL_IMPORT_LAN_GETPINGQUEUECOUNT] = (ql_import_f)QL_UI_trap_LAN_GetPingQueueCount;",
         "ql_ui_imports[UI_QL_IMPORT_LAN_CLEARPING] = (ql_import_f)QL_UI_trap_LAN_ClearPing;",
         "ql_ui_imports[UI_QL_IMPORT_LAN_GETPING] = (ql_import_f)QL_UI_trap_LAN_GetPing;",
@@ -1856,6 +1893,7 @@ def test_ui_native_import_table_matches_recovered_retail_slots() -> None:
         "ql_ui_imports[UI_QL_IMPORT_LAN_COMPARESERVERS] = (ql_import_f)QL_UI_trap_LAN_CompareServers;",
         "ql_ui_imports[UI_QL_IMPORT_MEMORY_REMAINING] = (ql_import_f)QL_UI_trap_MemoryRemaining;",
         "ql_ui_imports[UI_QL_IMPORT_S_STOPBACKGROUNDTRACK] = (ql_import_f)QL_UI_trap_S_StopBackgroundTrack;",
+        "ql_ui_imports[UI_QL_IMPORT_S_STARTBACKGROUNDTRACK] = (ql_import_f)QL_UI_trap_S_StartBackgroundTrack;",
         "ql_ui_imports[UI_QL_IMPORT_R_REMAP_SHADER] = (ql_import_f)QL_UI_trap_R_RemapShader;",
         "ql_ui_imports[UI_QL_IMPORT_SETUP_ADVERT_CELL_SHADER] = (ql_import_f)QL_UI_trap_SetupAdvertCellShader;",
         "ql_ui_imports[UI_QL_IMPORT_REFRESH_ADVERT_CELL_SHADER] = (ql_import_f)QL_UI_trap_RefreshAdvertCellShader;",
@@ -1879,8 +1917,53 @@ def test_ui_native_import_table_matches_recovered_retail_slots() -> None:
     for expected in (
         "static void QDECL QL_UI_trap_R_RegisterFont( const char *fontName, int pointSize, fontInfo_t *font ) {",
         "UI_Import_Syscall( UI_R_REGISTERFONT, fontName, pointSize, font );",
+        "static void QDECL QL_UI_trap_S_StartLocalSound( sfxHandle_t sfx, int channelNum ) {",
+        "UI_Import_Syscall( UI_S_STARTLOCALSOUND, sfx, channelNum );",
+        "static sfxHandle_t QDECL QL_UI_trap_S_RegisterSound( const char *sample, qboolean compressed ) {",
+        "return UI_Import_Syscall( UI_S_REGISTERSOUND, sample, compressed );",
+        "static void QDECL QL_UI_trap_S_StopBackgroundTrack( void ) {",
+        "UI_Import_Syscall( UI_S_STOPBACKGROUNDTRACK );",
+        "static void QDECL QL_UI_trap_S_StartBackgroundTrack( const char *intro, const char *loop ) {",
+        "UI_Import_Syscall( UI_S_STARTBACKGROUNDTRACK, intro, loop );",
     ):
         assert expected in ql_ui_imports
+
+    for alias, name in {
+        "sub_4BEFB0": "QLCGImport_S_StartLocalSound",
+        "sub_4AFEC0": "QLCGImport_S_RegisterSound",
+        "sub_4AFED0": "QLCGImport_S_StartBackgroundTrack",
+        "sub_4DB030": "S_StopBackgroundTrack",
+    }.items():
+        assert aliases[alias] == name
+
+    for entry, (name, size) in {
+        "004befb0": ("FUN_004befb0", "9"),
+        "004afec0": ("FUN_004afec0", "9"),
+        "004afed0": ("FUN_004afed0", "9"),
+        "004db030": ("FUN_004db030", "35"),
+    }.items():
+        assert function_rows[entry]["name"] == name
+        assert function_rows[entry]["size"] == size
+
+    for expected in (
+        "004befb0    int32_t sub_4befb0()",
+        "004befb4  return sub_4db3f0() __tailcall",
+        "004afec0    int32_t sub_4afec0()",
+        "004afec4  return sub_4d9e50() __tailcall",
+        "004afed0    int32_t sub_4afed0()",
+        "004afed4  return sub_4db060() __tailcall",
+        "004bd978      sub_4db030()",
+        "004db030    void sub_4db030()",
+    ):
+        assert expected in steam_hlil
+
+    for expected in (
+        "005673c0  void* data_5673c0 = sub_4befb0",
+        "005673c4  void* data_5673c4 = sub_4afec0",
+        "00567454  void* data_567454 = 0x4b02f0",
+        "00567458  void* data_567458 = sub_4afed0",
+    ):
+        assert expected in steam_table_hlil
 
     assert "ql_ui_imports[85] = (ql_import_f)QL_UI_trap_S_StopBackgroundTrack;" not in cl_ui
     assert "UI_QL_IMPORT_MEMORY_REMAINING = 101" not in cl_ui

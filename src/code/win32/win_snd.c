@@ -155,8 +155,10 @@ int SNDDMA_InitDS ()
 	DSBCAPS			dsbcaps;
 	WAVEFORMATEX	format;
 	int				use8;
+	cvar_t			*muteBackground;
 
 	Com_Printf( "Initializing DirectSound\n");
+	muteBackground = Cvar_Get( "s_muteBackground", "1", CVAR_ARCHIVE | CVAR_LATCH );
 
 	use8 = 1;
     // Create IDirectSound using the primary sound device
@@ -186,14 +188,6 @@ int SNDDMA_InitDS ()
 	// create the secondary buffer we'll actually work with
 	dma.channels = 2;
 	dma.samplebits = 16;
-
-//	if (s_khz->integer == 44)
-//		dma.speed = 44100;
-//	else if (s_khz->integer == 22)
-//		dma.speed = 22050;
-//	else
-//		dma.speed = 11025;
-
 	dma.speed = 22050;
 	memset (&format, 0, sizeof(format));
 	format.wFormatTag = WAVE_FORMAT_PCM;
@@ -212,6 +206,9 @@ int SNDDMA_InitDS ()
 	if (use8) {
 		dsbuf.dwFlags |= DSBCAPS_GETCURRENTPOSITION2;
 	}
+	if ( !muteBackground->integer ) {
+		dsbuf.dwFlags |= DSBCAPS_GLOBALFOCUS;
+	}
 	dsbuf.dwBufferBytes = SECONDARY_BUFFER_SIZE;
 	dsbuf.lpwfxFormat = &format;
 	
@@ -227,6 +224,9 @@ int SNDDMA_InitDS ()
 		dsbuf.dwFlags = DSBCAPS_LOCSOFTWARE;
 		if (use8) {
 			dsbuf.dwFlags |= DSBCAPS_GETCURRENTPOSITION2;
+		}
+		if ( !muteBackground->integer ) {
+			dsbuf.dwFlags |= DSBCAPS_GLOBALFOCUS;
 		}
 		if (DS_OK != pDS->lpVtbl->CreateSoundBuffer(pDS, &dsbuf, &pDSBuf, NULL)) {
 			Com_Printf( "failed\n" );
@@ -384,5 +384,3 @@ void SNDDMA_Activate( void ) {
 		SNDDMA_Shutdown ();
 	}
 }
-
-

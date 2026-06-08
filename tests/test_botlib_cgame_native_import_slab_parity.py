@@ -36,6 +36,7 @@ QL_STEAM_HLIL_PART07 = (
 )
 CLIENT_CL_CGAME = REPO_ROOT / "src" / "code" / "client" / "cl_cgame.c"
 CGAME_PUBLIC = REPO_ROOT / "src" / "code" / "cgame" / "cg_public.h"
+CGAME_SYSCALLS = REPO_ROOT / "src" / "code" / "cgame" / "cg_syscalls.c"
 
 CGAME_NATIVE_SLAB_START = 0x4AF820
 CGAME_NATIVE_SLAB_END = 0x4B0500
@@ -133,12 +134,16 @@ EXPECTED_IMPORT_ASSIGNMENTS = (
 	("CG_QL_IMPORT_CM_MARKFRAGMENTS", "QL_CG_trap_CM_MarkFragments"),
 	("CG_QL_IMPORT_S_STARTSOUND", "QL_CG_trap_S_StartSound"),
 	("CG_QL_IMPORT_S_STARTSOUND_VOLUME", "QL_CG_trap_S_StartSoundVolume"),
+	("CG_QL_IMPORT_S_STARTLOCALSOUND", "QL_CG_trap_S_StartLocalSound"),
 	("CG_QL_IMPORT_S_STARTLOCALSOUND_VOLUME", "QL_CG_trap_S_StartLocalSoundVolume"),
+	("CG_QL_IMPORT_S_CLEARLOOPINGSOUNDS_FRAME", "QL_CG_trap_S_ClearLoopingSoundsFrame"),
+	("CG_QL_IMPORT_S_CLEARLOOPINGSOUNDS_KILLALL", "QL_CG_trap_S_ClearLoopingSoundsKillAll"),
 	("CG_QL_IMPORT_S_ADDLOOPINGSOUND", "QL_CG_trap_S_AddLoopingSound"),
 	("CG_QL_IMPORT_S_UPDATEENTITYPOSITION", "QL_CG_trap_S_UpdateEntityPosition"),
 	("CG_QL_IMPORT_S_RESPATIALIZE", "QL_CG_trap_S_Respatialize"),
 	("CG_QL_IMPORT_S_REGISTERSOUND", "QL_CG_trap_S_RegisterSound"),
 	("CG_QL_IMPORT_S_STARTBACKGROUNDTRACK", "QL_CG_trap_S_StartBackgroundTrack"),
+	("CG_QL_IMPORT_S_STOPBACKGROUNDTRACK", "QL_CG_trap_S_StopBackgroundTrack"),
 	("CG_QL_IMPORT_R_LOADWORLDMAP", "QL_CG_trap_R_LoadWorldMap"),
 	("CG_QL_IMPORT_R_REGISTERSHADER", "QL_CG_trap_R_RegisterShader"),
 	("CG_QL_IMPORT_R_REGISTERSHADERNOMIP", "QL_CG_trap_R_RegisterShaderNoMip"),
@@ -185,6 +190,8 @@ EXPECTED_IMPORT_ASSIGNMENTS = (
 	("CG_QL_IMPORT_DRAW_SCALED_TEXT", "QL_CG_trap_DrawScaledText"),
 	("CG_QL_IMPORT_TOGGLE_CLIENT_MUTE", "QL_CG_trap_ToggleClientMute"),
 	("CG_QL_IMPORT_GET_AVATAR_IMAGE_HANDLE", "QL_CG_trap_GetAvatarImageHandle"),
+	("CG_QL_IMPORT_COMPAT_S_ADDREALLOOPINGSOUND", "QL_CG_trap_S_AddRealLoopingSound"),
+	("CG_QL_IMPORT_COMPAT_S_STOPLOOPINGSOUND", "QL_CG_trap_S_StopLoopingSound"),
 )
 
 
@@ -237,6 +244,13 @@ def test_native_cgame_import_slab_aliases_and_rows_are_pinned() -> None:
 	assert "4B0170" not in rows
 	assert "4B0210" not in rows
 
+	for alias, name in {
+		"sub_4BEFB0": "QLCGImport_S_StartLocalSound",
+		"j_sub_4DA490": "QLCGImport_S_ClearLoopingSoundsFrame",
+		"j_sub_4DA3E0": "QLCGImport_S_ClearLoopingSoundsKillAll",
+	}.items():
+		assert aliases[alias] == name
+
 
 def test_native_cgame_import_slab_hlil_wrapper_shapes_are_pinned() -> None:
 	hlil = _read(QL_STEAM_HLIL_PART04)
@@ -257,6 +271,10 @@ def test_native_cgame_import_slab_hlil_wrapper_shapes_are_pinned() -> None:
 		"004afdf2  return sub_4c7900(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, 1)",
 		"004afe2c  int32_t var_8 = ecx",
 		"004afe43  return sub_4da050(arg1, arg2, arg3, arg4, fconvert.s(fconvert.t(arg5)))",
+		"004afe70    int32_t* j_sub_4da490()",
+		"004afe70  return sub_4da490() __tailcall",
+		"004afe80    void j_sub_4da3e0()",
+		"004afe80  return sub_4da3e0() __tailcall",
 		"004aff20    int32_t sub_4aff20()",
 		"004aff24  return sub_4f21e0() __tailcall",
 		"004aff80    int32_t sub_4aff80(int32_t arg1, int32_t arg2, int32_t arg3, int32_t arg4, float arg5, float arg6, float arg7, int32_t arg8, int32_t arg9)",
@@ -294,12 +312,42 @@ def test_native_cgame_import_slab_hlil_wrapper_shapes_are_pinned() -> None:
 
 	for table_anchor in (
 		"00565a6c  void* data_565a6c = sub_4affc0",
+		"005659f4  void* data_5659f4 = sub_4befb0",
+		"005659fc  void* data_5659fc = j_sub_4da490",
+		"00565a00  void* data_565a00 = j_sub_4da3e0",
+		"00565a18  void* data_565a18 = 0x4b02f0",
 		"00565a70  void* data_565a70 = sub_4bef40",
 		"00565a98  void* data_565a98 = sub_4b00c0",
 		"00565abc  void* data_565abc = sub_4b0170",
 		"00565b2c  void* data_565b2c = sub_4b0370",
 	):
 		assert table_anchor in table_hlil
+
+
+def test_native_cgame_sound_import_wiring_reconstructs_retail_clear_slots() -> None:
+	cl_cgame = _read(CLIENT_CL_CGAME)
+	cg_syscalls = _read(CGAME_SYSCALLS)
+
+	frame_block = _extract_function_block(
+		cl_cgame,
+		"static void QDECL QL_CG_trap_S_ClearLoopingSoundsFrame( void )",
+	)
+	killall_block = _extract_function_block(
+		cl_cgame,
+		"static void QDECL QL_CG_trap_S_ClearLoopingSoundsKillAll( void )",
+	)
+	map_block = _extract_function_block(cg_syscalls, "static int CG_MapNativeImport")
+
+	assert "S_ClearLoopingSoundsFrame();" in frame_block
+	assert "S_ClearLoopingSounds( qfalse );" not in frame_block
+	assert "S_ClearSoundBuffer();" in killall_block
+	assert "S_ClearLoopingSounds( qtrue );" not in killall_block
+	assert "case CG_S_STARTLOCALSOUND: return CG_QL_IMPORT_S_STARTLOCALSOUND;" in map_block
+	assert "case CG_S_CLEARLOOPINGSOUNDS:" in map_block
+	assert "return ( stack && stack[1] ) ? CG_QL_IMPORT_S_CLEARLOOPINGSOUNDS_KILLALL : CG_QL_IMPORT_S_CLEARLOOPINGSOUNDS_FRAME;" in map_block
+	assert "case CG_S_STOPBACKGROUNDTRACK: return CG_QL_IMPORT_S_STOPBACKGROUNDTRACK;" in map_block
+	assert "case CG_S_ADDREALLOOPINGSOUND: return CG_QL_IMPORT_COMPAT_S_ADDREALLOOPINGSOUND;" in map_block
+	assert "case CG_S_STOPLOOPINGSOUND: return CG_QL_IMPORT_COMPAT_S_STOPLOOPINGSOUND;" in map_block
 
 
 def test_native_cgame_import_table_source_matches_reconstructed_slot_surface() -> None:

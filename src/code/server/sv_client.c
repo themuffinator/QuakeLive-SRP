@@ -1839,6 +1839,8 @@ Publishes the current server identity once Steam confirms the GameServer session
 =================
 */
 static void SV_SteamServerConnectedCallback( void *context, const ql_steam_server_connected_t *event ) {
+	const char *serverInfo;
+
 	(void)context;
 	(void)event;
 
@@ -1847,6 +1849,8 @@ static void SV_SteamServerConnectedCallback( void *context, const ql_steam_serve
 	SV_SteamServerPublishIdentity();
 	SV_SteamServerUpdatePublishedState( qtrue );
 	SV_SteamStats_RequerySessions();
+	serverInfo = Cvar_InfoString( CVAR_SERVERINFO );
+	QL_Steamworks_ServerSetKeyValuesFromInfoString( serverInfo );
 }
 
 /*
@@ -1857,19 +1861,11 @@ Tracks retail-style Steam server connect failures in the server owner.
 =================
 */
 static void SV_SteamServerConnectFailureCallback( void *context, const ql_steam_server_connect_failure_t *event ) {
-	char detail[96];
-
 	(void)context;
+	(void)event;
 
 	sv_steamServerConnected = qfalse;
-
-	if ( !event ) {
-		SV_LogSteamServerCallbackLifecycle( "connect_failure", "ignored null callback payload" );
-		return;
-	}
-
-	Com_sprintf( detail, sizeof( detail ), "connect failure result=%d", event->result );
-	SV_LogSteamServerCallbackLifecycle( "connect_failure", detail );
+	Com_Printf( "Failed to connect to Steam servers\n" );
 }
 
 /*
@@ -1880,19 +1876,11 @@ Tracks when the Steam GameServer session disconnects from Valve backends.
 =================
 */
 static void SV_SteamServerDisconnectedCallback( void *context, const ql_steam_server_disconnected_t *event ) {
-	char detail[96];
-
 	(void)context;
+	(void)event;
 
 	sv_steamServerConnected = qfalse;
-
-	if ( !event ) {
-		SV_LogSteamServerCallbackLifecycle( "disconnected", "ignored null callback payload" );
-		return;
-	}
-
-	Com_sprintf( detail, sizeof( detail ), "disconnected result=%d", event->result );
-	SV_LogSteamServerCallbackLifecycle( "disconnected", detail );
+	Com_Printf( "Disconnected from Steam servers\n" );
 }
 
 /*

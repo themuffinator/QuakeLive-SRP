@@ -305,6 +305,10 @@ Runs the Steam server networking maintenance loop.
 =============
 */
 static void SV_SteamServerNetworkingFrame( void ) {
+	if ( !QL_Steamworks_ServerIsInitialised() ) {
+		return;
+	}
+
 	QL_Steamworks_RunServerCallbacks();
 
 	if ( svs.time < s_steamP2PKeepAliveTime ) {
@@ -1511,6 +1515,10 @@ static void SV_SteamServerHandleIncomingPacket( const netadr_t *from, const msg_
 	uint32_t	packedIp;
 
 	if ( !from || !msg || !msg->data || msg->cursize <= 0 || from->type != NA_IP ) {
+		return;
+	}
+
+	if ( !QL_Steamworks_ServerIsInitialised() ) {
 		return;
 	}
 

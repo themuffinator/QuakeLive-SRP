@@ -66,6 +66,7 @@ typedef qboolean (QL_STEAMWORKS_FASTCALL *QL_SteamGameServer_BLoggedOnFn)( void 
 typedef qboolean (QL_STEAMWORKS_FASTCALL *QL_SteamGameServer_HandleIncomingPacketFn)( void *, void *, const void *, int, uint32_t, uint16_t );
 typedef int (QL_STEAMWORKS_FASTCALL *QL_SteamGameServer_GetNextOutgoingPacketFn)( void *, void *, void *, int, uint32_t *, uint16_t * );
 typedef void (QL_STEAMWORKS_FASTCALL *QL_SteamGameServer_EnableHeartbeatsFn)( void *, void *, int );
+typedef CSteamID *(QL_STEAMWORKS_FASTCALL *QL_SteamGameServer_CreateUnauthenticatedUserConnectionFn)( void *, void *, CSteamID * );
 typedef void (QL_STEAMWORKS_FASTCALL *QL_SteamGameServer_SetDedicatedFn)( void *, void *, int );
 typedef void (QL_STEAMWORKS_FASTCALL *QL_SteamGameServer_LogOnFn)( void *, void *, const char * );
 typedef void (QL_STEAMWORKS_FASTCALL *QL_SteamGameServer_LogOnAnonymousFn)( void *, void * );
@@ -6303,6 +6304,10 @@ qboolean QL_Steamworks_ServerEnableHeartbeats( qboolean enable ) {
 	void **vtable;
 	QL_SteamGameServer_EnableHeartbeatsFn fn;
 
+	if ( !state.gameServerInitialised ) {
+		return qfalse;
+	}
+
 	gameServer = QL_Steamworks_GetGameServer();
 	if ( !gameServer ) {
 		return qfalse;
@@ -6370,6 +6375,59 @@ qboolean QL_Steamworks_ServerGetSteamID( uint32_t *outIdLow, uint32_t *outIdHigh
 	*outIdLow = (uint32_t)( steamId.value & 0xffffffffu );
 	*outIdHigh = (uint32_t)( ( steamId.value >> 32 ) & 0xffffffffu );
 	return qtrue;
+}
+
+/*
+=============
+QL_Steamworks_ServerCreateUnauthenticatedUserConnection
+
+Creates the retail unauthenticated Steam identity used for local server-owned clients.
+=============
+*/
+qboolean QL_Steamworks_ServerCreateUnauthenticatedUserConnection( uint32_t *outIdLow, uint32_t *outIdHigh ) {
+	void *gameServer;
+	void **vtable;
+	CSteamID steamId;
+	QL_SteamGameServer_CreateUnauthenticatedUserConnectionFn fn;
+
+	if ( outIdLow ) {
+		*outIdLow = 0u;
+	}
+	if ( outIdHigh ) {
+		*outIdHigh = 0u;
+	}
+
+	if ( !outIdLow || !outIdHigh ) {
+		return qfalse;
+	}
+
+	if ( !state.gameServerInitialised ) {
+		return qfalse;
+	}
+
+	gameServer = QL_Steamworks_GetGameServer();
+	if ( !gameServer ) {
+		return qfalse;
+	}
+
+	vtable = *(void ***)gameServer;
+	if ( !vtable ) {
+		return qfalse;
+	}
+
+	fn = (QL_SteamGameServer_CreateUnauthenticatedUserConnectionFn)vtable[0x64 / 4];
+	if ( !fn ) {
+		return qfalse;
+	}
+
+	steamId.value = 0ull;
+	if ( !fn( gameServer, NULL, &steamId ) ) {
+		return qfalse;
+	}
+
+	*outIdLow = (uint32_t)( steamId.value & 0xffffffffu );
+	*outIdHigh = (uint32_t)( ( steamId.value >> 32 ) & 0xffffffffu );
+	return steamId.value != 0ull ? qtrue : qfalse;
 }
 
 /*
@@ -6455,6 +6513,10 @@ qboolean QL_Steamworks_ServerSetKeyValuesFromInfoString( const char *infoString 
 	char value[MAX_INFO_VALUE];
 
 	if ( !infoString ) {
+		return qfalse;
+	}
+
+	if ( !state.gameServerInitialised ) {
 		return qfalse;
 	}
 

@@ -137,62 +137,82 @@ WAV loading
 ===============================================================================
 */
 
-static	byte	*data_p;
-static	byte 	*iff_end;
-static	byte 	*last_chunk;
-static	byte 	*iff_data;
-static	int 	iff_chunk_len;
+typedef enum {
+	SFT_UNKNOWN = 0,
+	SFT_WAV = 1,
+	SFT_OGG = 2
+} soundFileType_t;
 
-static short GetLittleShort(void)
-{
-	short val = 0;
-	val = *data_p;
-	val = val + (*(data_p+1)<<8);
-	data_p += 2;
-	return val;
-}
+/*
+=============
+S_ReadWavBytes
 
-static int GetLittleLong(void)
-{
-	int val = 0;
-	val = *data_p;
-	val = val + (*(data_p+1)<<8);
-	val = val + (*(data_p+2)<<16);
-	val = val + (*(data_p+3)<<24);
-	data_p += 4;
-	return val;
-}
-
-static void FindNextChunk(char *name)
-{
-	while (1)
-	{
-		data_p=last_chunk;
-
-		if (data_p >= iff_end)
-		{	// didn't find the chunk
-			data_p = NULL;
-			return;
-		}
-		
-		data_p += 4;
-		iff_chunk_len = GetLittleLong();
-		if (iff_chunk_len < 0)
-		{
-			data_p = NULL;
-			return;
-		}
-		data_p -= 8;
-		last_chunk = data_p + 8 + ( (iff_chunk_len + 1) & ~1 );
-		if (!strncmp((char *)data_p, name, 4))
-			return;
+Reads from the open WAV handle using the retail FS_Read-based parsing contract.
+=============
+*/
+static int S_ReadWavBytes( fileHandle_t file, void *dest, int count ) {
+	if ( !file || !dest || count <= 0 ) {
+		return 0;
 	}
+
+	return FS_Read( dest, count, file );
 }
 
-static void FindChunk(char *name)
-{
-	last_chunk = iff_data;
-	FindNextChunk (name);
+/*
+=============
+GetLittleShort
+=============
+*/
+static short GetLittleShort( fileHandle_t file ) {
+	short val = 0;
+
+	if ( S_ReadWavBytes( file, &val, sizeof( val ) ) != sizeof( val ) ) {
+		return 0;
+	}
+
+	return LittleShort( val );
+}
+
+/*
+=============
+GetLittleLong
+=============
+*/
+static int GetLittleLong( fileHandle_t file ) {
+	int val = 0;
+
+	if ( S_ReadWavBytes( file, &val, sizeof( val ) ) != sizeof( val ) ) {
+		return 0;
+	}
+
+	return LittleLong( val );
+}
+
+/*
+=============
+S_FindWavChunk
+
+Returns the padded size of the next WAV chunk when its id matches `chunk`.
+=============
+*/
+static int S_FindWavChunk( fileHandle_t file, const char *chunk ) {
+	char	name[4];
+	int		len;
+
+	if ( S_ReadWavBytes( file, name, sizeof( name ) ) != sizeof( name ) ) {
+		return 0;
+	}
+
+	len = GetLittleLong( file );
+	if ( len < 0 ) {
+		return 0;
+	}
+
+	if ( strncmp( name, chunk, sizeof( name ) ) ) {
+		return 0;
+	}
+
+	return ( len + 1 ) & ~1;
 }
 
 /*
@@ -200,149 +220,113 @@ static void FindChunk(char *name)
 GetWavinfo
 ============
 */
-static wavinfo_t GetWavinfo (char *name, byte *wav, int wavlength)
-{
-	wavinfo_t	info;
+static int GetWavinfo( fileHandle_t file, wavinfo_t *info ) {
+	char		waveTag[4];
+	int			dataLength;
 
-	Com_Memset (&info, 0, sizeof(info));
+	if ( !info ) {
+		return 0;
+	}
 
-	if (!wav)
-		return info;
-		
-	iff_data = wav;
-	iff_end = wav + wavlength;
+	Com_Memset( info, 0, sizeof( *info ) );
 
 // find "RIFF" chunk
-	FindChunk("RIFF");
-	if (!(data_p && !strncmp((char *)data_p+8, "WAVE", 4)))
+	if ( !S_FindWavChunk( file, "RIFF" ) || S_ReadWavBytes( file, waveTag, sizeof( waveTag ) ) != sizeof( waveTag )
+		|| strncmp( waveTag, "WAVE", sizeof( waveTag ) ) )
 	{
 		Com_Printf("Missing RIFF/WAVE chunks\n");
-		return info;
+		return 0;
 	}
 
 // get "fmt " chunk
-	iff_data = data_p + 12;
 // DumpChunks ();
 
-	FindChunk("fmt ");
-	if (!data_p)
+	if ( !S_FindWavChunk( file, "fmt " ) )
 	{
 		Com_Printf("Missing fmt chunk\n");
-		return info;
+		return 0;
 	}
-	data_p += 8;
-	info.format = GetLittleShort();
-	info.channels = GetLittleShort();
-	info.rate = GetLittleLong();
-	data_p += 4+2;
-	info.width = GetLittleShort() / 8;
+	info->format = GetLittleShort( file );
+	info->channels = GetLittleShort( file );
+	info->rate = GetLittleLong( file );
+	GetLittleLong( file );
+	GetLittleShort( file );
+	info->width = GetLittleShort( file ) / 8;
 
-	if (info.format != 1)
+	if (info->format != 1)
 	{
 		Com_Printf("Microsoft PCM format only\n");
-		return info;
+		return 0;
 	}
 
 
 // find data chunk
-	FindChunk("data");
-	if (!data_p)
+	dataLength = S_FindWavChunk( file, "data" );
+	if ( !dataLength )
 	{
 		Com_Printf("Missing data chunk\n");
-		return info;
+		return 0;
 	}
 
-	data_p += 4;
-	info.samples = GetLittleLong () / info.width;
-	info.dataofs = data_p - wav;
+	if ( info->width <= 0 ) {
+		return 0;
+	}
 
-	return info;
+	info->samples = dataLength / info->width;
+
+	return dataLength;
 }
 
 /*
 =============
-S_PathIsOgg
+S_SoundFileTypeForPath
 
-Checks whether the provided sound path already declares an OGG extension.
+Classifies a sound path using the retail extension-only type mapping.
 =============
 */
-static qboolean S_PathIsOgg( const char *name ) {
-#if !QL_ENABLE_OGG
-	return qfalse;
-#endif
+static soundFileType_t S_SoundFileTypeForPath( const char *name ) {
 	const char	*dot;
 
 	if ( !name ) {
-		return qfalse;
+		return SFT_UNKNOWN;
 	}
 
-	dot = strrchr( name, '.' );
-	if ( !dot || !*( dot + 1 ) ) {
-		return qfalse;
+	dot = Q_strrchr( name, '.' );
+	if ( !dot || !*dot ) {
+		return SFT_UNKNOWN;
 	}
 
-	return ( qboolean )( !Q_stricmp( dot + 1, "ogg" ) );
+	if ( !Q_stricmp( dot, ".ogg" ) ) {
+		return SFT_OGG;
+	}
+
+	if ( !Q_stricmp( dot, ".wav" ) ) {
+		return SFT_WAV;
+	}
+
+	return SFT_UNKNOWN;
 }
 
 /*
 =============
-S_BufferIsOgg
+S_OpenSoundFile
 
-Sniffs the first bytes of a file to see whether it contains the OggS magic header.
+Opens the requested sound path and retries with a default `.ogg` extension when
+the original asset is missing, matching the retail sound-load path.
 =============
 */
-static qboolean S_BufferIsOgg( const byte *data, int length ) {
-#if !QL_ENABLE_OGG
-	return qfalse;
-#endif
-	if ( !data || length < 4 ) {
+static qboolean S_OpenSoundFile( const char *name, char *resolvedName, int resolvedNameSize, fileHandle_t *file, int *outSize, soundFileType_t *fileType ) {
+	if ( !name || !resolvedName || resolvedNameSize <= 0 || !file || !outSize || !fileType ) {
 		return qfalse;
 	}
 
-	if ( data[0] != 'O' || data[1] != 'g' || data[2] != 'g' || data[3] != 'S' ) {
-		return qfalse;
-	}
-
-	return qtrue;
-}
-
-/*
-=============
-S_IsOggSound
-
-Combines extension checks and magic sniffing to detect Vorbis assets.
-=============
-*/
-static qboolean S_IsOggSound( const char *name, const byte *data, int length ) {
-#if !QL_ENABLE_OGG
-	return qfalse;
-#endif
-	if ( S_PathIsOgg( name ) ) {
-		return qtrue;
-	}
-
-	return S_BufferIsOgg( data, length );
-}
-
-/*
-=============
-S_LoadSoundFile
-
-Loads the requested path and retries with a default `.ogg` extension when the
-original asset is missing, matching the retail Quake Live sound-load seam.
-=============
-*/
-static qboolean S_LoadSoundFile( const char *name, char *resolvedName, int resolvedNameSize, byte **outData, int *outSize ) {
-	if ( !name || !resolvedName || resolvedNameSize <= 0 || !outData || !outSize ) {
-		return qfalse;
-	}
-
-	*outData = NULL;
+	*file = 0;
 	*outSize = 0;
+	*fileType = S_SoundFileTypeForPath( name );
 
 	Q_strncpyz( resolvedName, name, resolvedNameSize );
-	*outSize = FS_ReadFile( resolvedName, (void **)outData );
-	if ( *outData ) {
+	*outSize = FS_FOpenFileRead( resolvedName, file, qtrue );
+	if ( *file ) {
 		return qtrue;
 	}
 
@@ -351,8 +335,9 @@ static qboolean S_LoadSoundFile( const char *name, char *resolvedName, int resol
 		return qfalse;
 	}
 
-	*outSize = FS_ReadFile( resolvedName, (void **)outData );
-	return ( *outData != NULL );
+	*fileType = SFT_OGG;
+	*outSize = FS_FOpenFileRead( resolvedName, file, qtrue );
+	return ( *file != 0 );
 }
 
 /*
@@ -440,77 +425,29 @@ static int ResampleSfxRaw( short *sfx, int inrate, int inwidth, int samples, byt
 	return outcount;
 }
 
-
-//=============================================================================
-
 /*
-==============
-S_LoadSound
+================
+S_LoadPCMSound
 
-The filename may be different than sfx->name in the case
-of a forced fallback of a player specific sound
-==============
+Stores decoded mono PCM data into the sound cache.
+================
 */
-qboolean S_LoadSound( sfx_t *sfx )
-{
-	byte	*data;
-	byte	*source;
+static qboolean S_LoadPCMSound( sfx_t *sfx, const char *loadName, const wavinfo_t *info, byte *source ) {
 	short	*samples;
-	short	*oggPcm;
-	wavinfo_t	info;
-	int			 size;
-	char		loadName[MAX_QPATH];
-	qboolean	isOgg;
 
-	// player specific sounds are never directly loaded
-	if ( sfx->soundName[0] == '*') {
+	if ( info->width != 2 ) {
+		Com_DPrintf( "WAV_Load: %s is not a 16-bit file\n", loadName );
+	}
+
+	if ( info->rate != 22050 ) {
+		Com_DPrintf( "WAV_Load: %s is not a 22kHz file\n", loadName );
+	}
+
+	if ( info->samples <= 0 || info->width <= 0 || !source ) {
 		return qfalse;
 	}
 
-	// load it in
-	if ( !S_LoadSoundFile( sfx->soundName, loadName, sizeof( loadName ), &data, &size ) ) {
-		return qfalse;
-	}
-
-	oggPcm = NULL;
-	source = NULL;
-	isOgg = S_IsOggSound( loadName, data, size );
-
-	if ( isOgg ) {
-		if ( !S_VorbisDecodeMemory( loadName, data, size, &info, &oggPcm ) ) {
-			FS_FreeFile( data );
-			return qfalse;
-		}
-		source = (byte *)oggPcm;
-	} else {
-		info = GetWavinfo( loadName, data, size );
-		if ( info.channels != 1 ) {
-			Com_Printf ("%s is a stereo wav file\n", loadName);
-			FS_FreeFile (data);
-			return qfalse;
-		}
-		source = data + info.dataofs;
-	}
-
-	if ( info.width == 1 ) {
-		Com_DPrintf(S_COLOR_YELLOW "WARNING: %s is a 8 bit wav file\n", loadName);
-	}
-
-	if ( info.rate != 22050 ) {
-		Com_DPrintf(S_COLOR_YELLOW "WARNING: %s is not a 22kHz wav file\n", loadName);
-	}
-
-	if ( info.samples <= 0 || info.width <= 0 || !source ) {
-		if ( oggPcm ) {
-			Hunk_FreeTempMemory( oggPcm );
-		}
-		FS_FreeFile( data );
-		return qfalse;
-	}
-
-	samples = Hunk_AllocateTempMemory(info.samples * sizeof(short) * 2);
-
-	sfx->lastTimeUsed = Com_Milliseconds()+1;
+	samples = Hunk_AllocateTempMemory(info->samples * sizeof(short) * 2);
 
 	// each of these compression schemes works just fine
 	// but the 16bit quality is much nicer and with a local
@@ -521,7 +458,7 @@ qboolean S_LoadSound( sfx_t *sfx )
 	if( sfx->soundCompressed == qtrue) {
 		sfx->soundCompressionMethod = 1;
 		sfx->soundData = NULL;
-		sfx->soundLength = ResampleSfxRaw( samples, info.rate, info.width, info.samples, source );
+		sfx->soundLength = ResampleSfxRaw( samples, info->rate, info->width, info->samples, source );
 		S_AdpcmEncodeSound(sfx, samples);
 #if 0
 	} else if (info.samples>(SND_CHUNK_SIZE*16) && info.width >1) {
@@ -537,18 +474,136 @@ qboolean S_LoadSound( sfx_t *sfx )
 #endif
 	} else {
 		sfx->soundCompressionMethod = 0;
-		sfx->soundLength = info.samples;
+		sfx->soundLength = info->samples;
 		sfx->soundData = NULL;
-		ResampleSfx( sfx, info.rate, info.width, source, qfalse );
+		ResampleSfx( sfx, info->rate, info->width, source, qfalse );
 	}
 
 	Hunk_FreeTempMemory(samples);
-	if ( oggPcm ) {
-		Hunk_FreeTempMemory( oggPcm );
-	}
-	FS_FreeFile( data );
-
 	return qtrue;
+}
+
+/*
+================
+S_LoadOggSound
+
+Decodes a retail OGG sound effect and stores the resulting PCM.
+================
+*/
+static qboolean S_LoadOggSound( sfx_t *sfx, const char *loadName, fileHandle_t file, int size ) {
+	byte		*data;
+	short		*oggPcm;
+	wavinfo_t	info;
+	qboolean	result;
+
+	if ( size <= 0 ) {
+		return qfalse;
+	}
+
+	data = Hunk_AllocateTempMemory( size );
+	if ( !data ) {
+		return qfalse;
+	}
+
+	if ( FS_Read( data, size, file ) != size ) {
+		Hunk_FreeTempMemory( data );
+		return qfalse;
+	}
+
+	oggPcm = NULL;
+	if ( !S_VorbisDecodeMemory( loadName, data, size, &info, &oggPcm ) ) {
+		Hunk_FreeTempMemory( data );
+		return qfalse;
+	}
+
+	result = S_LoadPCMSound( sfx, loadName, &info, (byte *)oggPcm );
+	Hunk_FreeTempMemory( oggPcm );
+	Hunk_FreeTempMemory( data );
+	return result;
+}
+
+/*
+================
+S_LoadWavSound
+
+Parses a retail WAV sound effect and stores its PCM payload.
+================
+*/
+static qboolean S_LoadWavSound( sfx_t *sfx, const char *loadName, fileHandle_t file ) {
+	byte		*data;
+	wavinfo_t	info;
+	int			dataLength;
+	qboolean	result;
+
+	dataLength = GetWavinfo( file, &info );
+	if ( info.channels != 1 ) {
+		Com_Error( ERR_DROP, "%s is not a mono wav file", loadName );
+		return qfalse;
+	}
+
+	if ( dataLength <= 0 ) {
+		return qfalse;
+	}
+
+	data = Hunk_AllocateTempMemory( dataLength );
+	if ( !data ) {
+		return qfalse;
+	}
+
+	if ( FS_Read( data, dataLength, file ) != dataLength ) {
+		Hunk_FreeTempMemory( data );
+		return qfalse;
+	}
+
+	result = S_LoadPCMSound( sfx, loadName, &info, data );
+	Hunk_FreeTempMemory( data );
+	return result;
+}
+
+//=============================================================================
+
+/*
+==============
+S_LoadSound
+
+The filename may be different than sfx->name in the case
+of a forced fallback of a player specific sound
+==============
+*/
+qboolean S_LoadSound( sfx_t *sfx )
+{
+	fileHandle_t	file;
+	int			 size;
+	char		loadName[MAX_QPATH];
+	soundFileType_t	fileType;
+	qboolean	result;
+
+	// player specific sounds are never directly loaded
+	if ( sfx->soundName[0] == '*') {
+		return qfalse;
+	}
+
+	// load it in
+	if ( !S_OpenSoundFile( sfx->soundName, loadName, sizeof( loadName ), &file, &size, &fileType ) ) {
+		return qfalse;
+	}
+
+	switch ( fileType ) {
+	case SFT_WAV:
+		result = S_LoadWavSound( sfx, loadName, file );
+		break;
+	case SFT_OGG:
+		result = S_LoadOggSound( sfx, loadName, file, size );
+		break;
+	default:
+		result = qfalse;
+		break;
+	}
+
+	FS_FCloseFile( file );
+	sfx->lastTimeUsed = Com_Milliseconds();
+
+	return result;
 }
 
 void S_DisplayFreeMemory() {

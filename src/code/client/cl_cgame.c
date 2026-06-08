@@ -5631,7 +5631,8 @@ fallback when the opted-in Steam provider cannot update favorites.
 =============
 */
 static qboolean CL_WebHost_SetFavoriteServer( uint32_t ip, uint16_t port, qboolean add ) {
-	if ( CL_SteamServicesEnabled() && !QL_Steamworks_SetFavoriteServerForApp( ip, port, CL_SteamBrowser_GetDiscoveryAppID(), add ) ) {
+	if ( CL_SteamServicesEnabled() && SteamClient_IsInitialized() &&
+		!QL_Steamworks_SetFavoriteServerForApp( ip, port, CL_SteamBrowser_GetDiscoveryAppID(), add ) ) {
 		Com_DPrintf(
 			"Steam favorite server %s failed for %u:%u; using local favorites cache fallback\n",
 			add ? "add" : "remove",
@@ -8673,7 +8674,7 @@ QL_CG_trap_S_ClearLoopingSoundsFrame
 ==============
 */
 static void QDECL QL_CG_trap_S_ClearLoopingSoundsFrame( void ) {
-	S_ClearLoopingSounds( qfalse );
+	S_ClearLoopingSoundsFrame();
 }
 
 /*
@@ -8682,7 +8683,7 @@ QL_CG_trap_S_ClearLoopingSoundsKillAll
 ==============
 */
 static void QDECL QL_CG_trap_S_ClearLoopingSoundsKillAll( void ) {
-	S_ClearLoopingSounds( qtrue );
+	S_ClearSoundBuffer();
 }
 
 /*

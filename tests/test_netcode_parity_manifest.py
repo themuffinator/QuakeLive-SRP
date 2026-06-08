@@ -819,6 +819,12 @@ def test_ql_server_browser_and_master_heartbeat_related_wiring_parity_recheck() 
 	steam_connected = _function_block(
 		sv_client, "static void SV_SteamServerConnectedCallback( void *context, const ql_steam_server_connected_t *event )"
 	)
+	steam_connect_failure = _function_block(
+		sv_client, "static void SV_SteamServerConnectFailureCallback( void *context, const ql_steam_server_connect_failure_t *event )"
+	)
+	steam_disconnected = _function_block(
+		sv_client, "static void SV_SteamServerDisconnectedCallback( void *context, const ql_steam_server_disconnected_t *event )"
+	)
 	direct_connect = _function_block(sv_client, "void SV_DirectConnect( netadr_t from )")
 	drop_client = _function_block(sv_client, "void SV_DropClient( client_t *drop, const char *reason )")
 	heartbeat_command = _function_block(sv_ccmds, "void SV_Heartbeat_f( void )")
@@ -983,6 +989,15 @@ def test_ql_server_browser_and_master_heartbeat_related_wiring_parity_recheck() 
 	assert "QL_Steamworks_ServerShutdown();" in shutdown_server
 	assert "SV_SteamServerPublishIdentity();" in steam_connected
 	assert "SV_SteamServerUpdatePublishedState( qtrue );" in steam_connected
+	assert "serverInfo = Cvar_InfoString( CVAR_SERVERINFO );" in steam_connected
+	assert "QL_Steamworks_ServerSetKeyValuesFromInfoString( serverInfo );" in steam_connected
+	assert steam_connected.index("SV_SteamServerUpdatePublishedState( qtrue );") < steam_connected.index(
+		"QL_Steamworks_ServerSetKeyValuesFromInfoString( serverInfo );"
+	)
+	assert 'Com_Printf( "Failed to connect to Steam servers\\n" );' in steam_connect_failure
+	assert "event->result" not in steam_connect_failure
+	assert 'Com_Printf( "Disconnected from Steam servers\\n" );' in steam_disconnected
+	assert "event->result" not in steam_disconnected
 	assert "if ( sv_masterAdvertise && sv_masterAdvertise->integer ) {" in steam_masters
 	assert "if ( sv_master[i] && sv_master[i]->string[0] ) {" in steam_masters
 	assert "newcl->state = CS_CONNECTED;" in direct_connect
@@ -7805,10 +7820,10 @@ def test_residual_policy_spot_check_guardrails_remain_manifest_backed() -> None:
 		"Steam GameServer bootstrap unavailable",
 	)
 	steam_client_frame = _function_block(cl_main, "void SteamClient_Frame( void )")
+	assert "services = QL_RefreshPlatformServices();" not in steam_client_frame
+	assert "SteamClient_SetInitializedState( services );" not in steam_client_frame
 	_assert_order(
 		steam_client_frame,
-		"services = QL_RefreshPlatformServices();",
-		"SteamClient_SetInitializedState( services );",
 		"if ( !SteamClient_IsInitialized() ) {",
 		"return;",
 		"QL_Steamworks_RunCallbacks();",
@@ -7819,9 +7834,12 @@ def test_residual_policy_spot_check_guardrails_remain_manifest_backed() -> None:
 		"SteamClient_SetInitializedState( services );",
 		"if ( !SteamClient_IsInitialized() ) {",
 		"CL_LogClientCallbackBootstrapFallback( \"online services disabled; keeping compatibility-only browser event fallback\" );",
-		"} else {",
-		"SteamCallbacks_Init();",
-		"if ( SteamClient_IsInitialized() ) {",
+		"return;",
+		"clientCallbacksRegistered = SteamCallbacks_Init();",
+		"if ( clientCallbacksRegistered ) {",
+		"microCallbacksRegistered = SteamMicroCallbacks_Init();",
+		"SteamLobby_Init();",
+		"if ( !clientCallbacksRegistered || !microCallbacksRegistered ) {",
 		"QL_Steamworks_UnregisterClientCallbacks();",
 	)
 	net_restart = _function_block(win_net, "void NET_Restart( void )")

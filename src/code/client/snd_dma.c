@@ -44,7 +44,6 @@ void S_UpdateBackgroundTrack( void );
 static fileHandle_t s_backgroundFile;
 static wavinfo_t	s_backgroundInfo;
 //int			s_nextWavChunk;
-static int			s_backgroundSamples;
 static char		s_backgroundLoop[MAX_QPATH];
 static snd_ogg_stream_t	s_backgroundOgg;
 static qboolean		s_backgroundIsOgg;
@@ -55,9 +54,7 @@ static qboolean		s_backgroundIsOgg;
 // Internal sound data & structures
 // =======================================================================
 
-// only begin attenuating sound volumes when outside the FULLVOLUME range
-#define		SOUND_FULLVOLUME	80
-
+#define		SOUND_MAXDISTANCE	1250.0f
 #define		SOUND_ATTENUATE		0.0008f
 channel_t   s_channels[MAX_CHANNELS];
 channel_t   loop_channels[MAX_CHANNELS];
@@ -87,13 +84,11 @@ static	sfx_t		*sfxHash[LOOP_HASH];
 
 cvar_t		*s_volume;
 cvar_t		*s_testsound;
-cvar_t		*s_khz;
 cvar_t		*s_show;
 cvar_t		*s_mixahead;
 cvar_t		*s_announcerVolume;
 cvar_t		*s_mixPreStep;
 cvar_t		*s_musicVolume;
-cvar_t		*s_separation;
 cvar_t		*s_doppler;
 cvar_t		*s_pvs;
 cvar_t		*s_voiceStep;
@@ -126,7 +121,7 @@ void S_SoundInfo_f(void) {
 		Com_Printf("%5d submission_chunk\n", dma.submission_chunk);
 		Com_Printf("%5d speed\n", dma.speed);
 		Com_Printf("0x%x dma buffer\n", dma.buffer);
-		if ( s_backgroundFile ) {
+		if ( s_backgroundFile || S_OggStreamActive( &s_backgroundOgg ) ) {
 			Com_Printf("Background file: %s\n", s_backgroundLoop );
 		} else {
 			Com_Printf("No background file.\n" );
@@ -204,9 +199,6 @@ void S_Init( void ) {
 		Com_Printf("------------------------------------\n");
 		return;
 	}
-
-	s_separation = Cvar_Get ("s_separation", "0.5", CVAR_ARCHIVE);
-	s_khz = Cvar_Get ("s_khz", "22", CVAR_ARCHIVE);
 
 	Cmd_AddCommand("play", S_Play_f);
 	Cmd_AddCommand("music", S_Music_f);
@@ -336,14 +328,14 @@ static sfx_t *S_FindName( const char *name ) {
 	sfx_t	*sfx;
 
 	if (!name) {
-		Com_Error (ERR_FATAL, "S_FindName: NULL\n");
+		Com_Error (ERR_FATAL, "S_FindName: NULL");
 	}
 	if (!name[0]) {
-		Com_Error (ERR_FATAL, "S_FindName: empty name\n");
+		Com_Error (ERR_FATAL, "S_FindName: empty name");
 	}
 
 	if (strlen(name) >= MAX_QPATH) {
-		Com_Error (ERR_FATAL, "Sound name too long: %s", name);
+		Com_Error (ERR_FATAL, "S_FindName: name too long: %s", name);
 	}
 
 	hash = S_HashSFXName(name);
@@ -466,7 +458,7 @@ sfxHandle_t	S_RegisterSound( const char *name, qboolean compressed ) {
 	sfx->inMemory = qfalse;
 	sfx->soundCompressed = compressed;
 
-  S_memoryLoad(sfx);
+	S_memoryLoad(sfx);
 
 	if ( sfx->defaultSound ) {
 		Com_Printf( S_COLOR_YELLOW "WARNING: could not find %s - using default\n", sfx->soundName );
@@ -476,10 +468,15 @@ sfxHandle_t	S_RegisterSound( const char *name, qboolean compressed ) {
 	return sfx - s_knownSfx;
 }
 
+/*
+==================
+S_memoryLoad
+==================
+*/
 void S_memoryLoad(sfx_t	*sfx) {
 	// load the sound file
 	if ( !S_LoadSound ( sfx ) ) {
-//		Com_Printf( S_COLOR_YELLOW "WARNING: couldn't load sound: %s\n", sfx->soundName );
+		Com_Printf( S_COLOR_YELLOW "WARNING: couldn't load sound: %s\n", sfx->soundName );
 		sfx->defaultSound = qtrue;
 	}
 	sfx->inMemory = qtrue;
@@ -508,9 +505,11 @@ void S_SpatializeOrigin (vec3_t origin, int master_vol, int *left_vol, int *righ
 	VectorSubtract(origin, listener_origin, source_vec);
 
 	dist = VectorNormalize(source_vec);
-	dist -= SOUND_FULLVOLUME;
-	if (dist < 0)
-		dist = 0;			// close enough to be at full volume
+	if ( dist >= SOUND_MAXDISTANCE ) {
+		*left_vol = 0;
+		*right_vol = 0;
+		return;
+	}
 	dist *= dist_mult;		// different attenuation levels
 	
 	VectorRotate( source_vec, listener_axis, vec );
@@ -526,8 +525,6 @@ void S_SpatializeOrigin (vec3_t origin, int master_vol, int *left_vol, int *righ
 	{
 		rscale = 0.5 * (1.0 + dot);
 		lscale = 0.5 * (1.0 - dot);
-		//rscale = s_separation->value + ( 1.0 - s_separation->value ) * dot;
-		//lscale = s_separation->value - ( 1.0 - s_separation->value ) * dot;
 		if ( rscale < 0 ) {
 			rscale = 0;
 		}
@@ -567,8 +564,6 @@ static void S_StartSoundInternal( vec3_t origin, int entityNum, int entchannel, 
 	int			oldest;
 	int			chosen;
 	int			time;
-	int			inplay;
-	int			allowed;
 
 	if ( !s_soundStarted || s_soundMuted ) {
 		return;
@@ -579,7 +574,7 @@ static void S_StartSoundInternal( vec3_t origin, int entityNum, int entchannel, 
 	}
 
 	if ( sfxHandle < 0 || sfxHandle >= s_numSfx ) {
-		Com_Printf( S_COLOR_YELLOW, "S_StartSound: handle %i out of range\n", sfxHandle );
+		Com_Printf( S_COLOR_YELLOW "S_StartSound: handle %i out of range\n", sfxHandle );
 		return;
 	}
 
@@ -598,27 +593,16 @@ static void S_StartSoundInternal( vec3_t origin, int entityNum, int entchannel, 
 //	Com_Printf("playing %s\n", sfx->soundName);
 	// pick a channel to play on
 
-	allowed = 4;
-	if (entityNum == listener_number) {
-		allowed = 8;
-	}
-
-	ch = s_channels;
-	inplay = 0;
-	for ( i = 0; i < MAX_CHANNELS ; i++, ch++ ) {		
-		if ( ch->entnum == entityNum && ch->thesfx == sfx ) {
-			if ( time - ch->allocTime < 50 ) {
-//				if (Cvar_VariableValue( "cg_showmiss" )) {
-//					Com_Printf("double sound start\n");
-//				}
-				return;
+	if ( entityNum != ENTITYNUM_WORLD ) {
+		ch = s_channels;
+		for ( i = 0; i < MAX_CHANNELS ; i++, ch++ ) {
+			if ( ch->entnum == entityNum && ch->thesfx == sfx ) {
+				if ( time - ch->allocTime < 50 ) {
+					Com_DPrintf( "double sound start: %d %s\n", entityNum, sfx->soundName );
+					return;
+				}
 			}
-			inplay++;
 		}
-	}
-
-	if (inplay>allowed) {
-		return;
 	}
 
 	sfx->lastTimeUsed = time;
@@ -630,7 +614,7 @@ static void S_StartSoundInternal( vec3_t origin, int entityNum, int entchannel, 
 		oldest = sfx->lastTimeUsed;
 		chosen = -1;
 		for ( i = 0 ; i < MAX_CHANNELS ; i++, ch++ ) {
-			if (ch->entnum != listener_number && ch->entnum == entityNum && ch->allocTime<oldest && ch->entchannel != CHAN_ANNOUNCER) {
+			if (ch->entnum == entityNum && ch->allocTime<oldest && ch->entchannel != CHAN_ANNOUNCER) {
 				oldest = ch->allocTime;
 				chosen = i;
 			}
@@ -638,25 +622,13 @@ static void S_StartSoundInternal( vec3_t origin, int entityNum, int entchannel, 
 		if (chosen == -1) {
 			ch = s_channels;
 			for ( i = 0 ; i < MAX_CHANNELS ; i++, ch++ ) {
-				if (ch->entnum != listener_number && ch->allocTime<oldest && ch->entchannel != CHAN_ANNOUNCER) {
+				if (ch->entnum == ENTITYNUM_WORLD && ch->allocTime<oldest) {
 					oldest = ch->allocTime;
 					chosen = i;
 				}
 			}
 			if (chosen == -1) {
-				if ( entityNum == listener_number ) {
-					ch = s_channels;
-					for ( i = 0 ; i < MAX_CHANNELS ; i++, ch++ ) {
-						if (ch->allocTime<oldest) {
-							oldest = ch->allocTime;
-							chosen = i;
-						}
-					}
-				}
-				if (chosen == -1) {
-					Com_Printf("dropping sound\n");
-					return;
-				}
+				return;
 			}
 		}
 		ch = &s_channels[chosen];
@@ -719,7 +691,7 @@ S_StartLocalSound
 */
 void S_StartLocalSound( sfxHandle_t sfxHandle, int channelNum ) {
 	if ( sfxHandle < 0 || sfxHandle >= s_numSfx ) {
-		Com_Printf( S_COLOR_YELLOW, "S_StartLocalSound: handle %i out of range\n", sfxHandle );
+		Com_Printf( S_COLOR_YELLOW "S_StartLocalSound: handle %i out of range\n", sfxHandle );
 		return;
 	}
 
@@ -733,7 +705,7 @@ S_StartLocalSoundVolume
 */
 void S_StartLocalSoundVolume( sfxHandle_t sfxHandle, int channelNum, float volume ) {
 	if ( sfxHandle < 0 || sfxHandle >= s_numSfx ) {
-		Com_Printf( S_COLOR_YELLOW, "S_StartLocalSound: handle %i out of range\n", sfxHandle );
+		Com_Printf( S_COLOR_YELLOW "S_StartLocalSound: handle %i out of range\n", sfxHandle );
 		return;
 	}
 
@@ -755,6 +727,7 @@ void S_AddVoiceSamples( int clientNum, int samples, const short *data ) {
 	int				queuedSamples;
 	int				startSample;
 	int				count;
+	int				room;
 
 	if ( !s_soundStarted || s_soundMuted || !data || samples <= 0 ) {
 		return;
@@ -770,23 +743,17 @@ void S_AddVoiceSamples( int clientNum, int samples, const short *data ) {
 
 	if ( channelIndex < 0 ) {
 		for ( i = 0; i < MAX_VOICE_CHANNELS; ++i ) {
-			if ( s_voiceChannels[i].endSample <= s_paintedtime ) {
+			if ( s_paintedtime - s_voiceChannels[i].endSample > (int)( dma.samples * 0.5f ) ) {
 				channelIndex = i;
+				s_voiceChannels[i].clientNum = clientNum;
+				Com_DPrintf( "client %d: using voice %d\n", clientNum, channelIndex );
 				break;
 			}
 		}
 	}
 
 	if ( channelIndex < 0 ) {
-		for ( i = 0; i < MAX_VOICE_CHANNELS; ++i ) {
-			if ( s_voiceChannels[i].endSample - s_paintedtime < (int)( dma.speed * 0.5f ) ) {
-				channelIndex = i;
-				break;
-			}
-		}
-	}
-
-	if ( channelIndex < 0 ) {
+		Com_DPrintf( "client %d silenced: no voices left\n", clientNum );
 		return;
 	}
 
@@ -801,17 +768,27 @@ void S_AddVoiceSamples( int clientNum, int samples, const short *data ) {
 
 		voice->startSample = startSample;
 		voice->endSample = startSample;
+		Com_DPrintf( "voice channel %d: start samples at time %d\n", channelIndex, startSample );
 	}
 
 	queuedSamples = voice->endSample - voice->startSample;
 	if ( queuedSamples < 0 ) {
 		queuedSamples = 0;
 	}
+	if ( queuedSamples > 0 ) {
+		Com_DPrintf( "voice channel %d: %d samples already in buffer\n", channelIndex, queuedSamples );
+	}
 
 	count = samples;
-	if ( count > VOICE_BUFFER_SAMPLES - queuedSamples ) {
-		count = VOICE_BUFFER_SAMPLES - queuedSamples;
+	room = VOICE_BUFFER_SAMPLES - queuedSamples;
+	if ( count > room ) {
+		Com_DPrintf( "voice channel %d: overflow %d voice samples with room for only %d\n", channelIndex, samples, room );
+		count = room;
 	}
+	if ( count < 0 ) {
+		count = 0;
+	}
+	Com_DPrintf( "voice channel %d: add %d samples to voice buffer\n", channelIndex, count );
 
 	for ( i = 0; i < count; ++i ) {
 		voice->samples[( voice->endSample + i ) & ( VOICE_BUFFER_SAMPLES - 1 )] = data[i];
@@ -892,6 +869,22 @@ void S_StopLoopingSound(int entityNum) {
 
 /*
 ==================
+S_ClearLoopingSoundsFrame
+
+Retail native-cgame frame clear for transient looping sounds.
+==================
+*/
+void S_ClearLoopingSoundsFrame( void ) {
+	int i;
+
+	for ( i = 0 ; i < MAX_GENTITIES ; i++) {
+		loopSounds[i].active = qfalse;
+	}
+	numLoopChannels = 0;
+}
+
+/*
+==================
 S_ClearLoopingSounds
 
 ==================
@@ -923,7 +916,7 @@ void S_AddLoopingSound( int entityNum, const vec3_t origin, const vec3_t velocit
 	}
 
 	if ( sfxHandle < 0 || sfxHandle >= s_numSfx ) {
-		Com_Printf( S_COLOR_YELLOW, "S_AddLoopingSound: handle %i out of range\n", sfxHandle );
+		Com_Printf( S_COLOR_YELLOW "S_AddLoopingSound: handle %i out of range\n", sfxHandle );
 		return;
 	}
 
@@ -984,7 +977,7 @@ void S_AddRealLoopingSound( int entityNum, const vec3_t origin, const vec3_t vel
 	}
 
 	if ( sfxHandle < 0 || sfxHandle >= s_numSfx ) {
-		Com_Printf( S_COLOR_YELLOW, "S_AddRealLoopingSound: handle %i out of range\n", sfxHandle );
+		Com_Printf( S_COLOR_YELLOW "S_AddRealLoopingSound: handle %i out of range\n", sfxHandle );
 		return;
 	}
 
@@ -1035,11 +1028,7 @@ void S_AddLoopSounds (void) {
 			continue;	// already merged into an earlier sound
 		}
 
-		if (loop->kill) {
-			S_SpatializeOrigin( loop->origin, 127, &left_total, &right_total);			// 3d
-		} else {
-			S_SpatializeOrigin( loop->origin, 90,  &left_total, &right_total);			// sphere
-		}
+		S_SpatializeOrigin( loop->origin, 127, &left_total, &right_total);
 
 		loop->sfx->lastTimeUsed = time;
 
@@ -1050,11 +1039,7 @@ void S_AddLoopSounds (void) {
 			}
 			loop2->mergeFrame = loopFrame;
 
-			if (loop2->kill) {
-				S_SpatializeOrigin( loop2->origin, 127, &left, &right);				// 3d
-			} else {
-				S_SpatializeOrigin( loop2->origin, 90,  &left, &right);				// sphere
-			}
+			S_SpatializeOrigin( loop2->origin, 127, &left, &right);
 
 			loop2->sfx->lastTimeUsed = time;
 			left_total += left;
@@ -1092,30 +1077,9 @@ void S_AddLoopSounds (void) {
 
 /*
 =================
-S_ByteSwapRawSamples
-
-If raw data has been loaded in little endien binary form, this must be done.
-If raw data was calculated, as with ADPCM, this should not be called.
+S_GetRawSamplePointer
 =================
 */
-void S_ByteSwapRawSamples( int samples, int width, int s_channels, const byte *data ) {
-	int		i;
-
-	if ( width != 2 ) {
-		return;
-	}
-	if ( LittleShort( 256 ) == 256 ) {
-		return;
-	}
-
-	if ( s_channels == 2 ) {
-		samples <<= 1;
-	}
-	for ( i = 0 ; i < samples ; i++ ) {
-		((short *)data)[i] = LittleShort( ((short *)data)[i] );
-	}
-}
-
 portable_samplepair_t *S_GetRawSamplePointer() {
 	return s_rawsamples;
 }
@@ -1398,8 +1362,15 @@ void S_Update( void ) {
 	S_Update_();
 }
 
-void S_GetSoundtime(void)
-{
+/*
+================
+S_GetSoundtime
+
+Updates the DMA-derived sound clock and returns the retail helper's ignored
+status value.
+================
+*/
+int S_GetSoundtime(void) {
 	int		samplepos;
 	static	int		buffers;
 	static	int		oldsamplepos;
@@ -1436,9 +1407,12 @@ void S_GetSoundtime(void)
 
 	if ( dma.submission_chunk < 256 ) {
 		s_paintedtime = s_soundtime + s_mixPreStep->value * dma.speed;
+		return s_paintedtime;
 	} else {
 		s_paintedtime = s_soundtime + dma.submission_chunk;
 	}
+
+	return s_soundtime;
 }
 
 
@@ -1561,137 +1535,51 @@ background music functions
 ===============================================================================
 */
 
-int	FGetLittleLong( fileHandle_t f ) {
-	int		v;
-
-	FS_Read( &v, sizeof(v), f );
-
-	return LittleLong( v);
-}
-
-int	FGetLittleShort( fileHandle_t f ) {
-	short	v;
-
-	FS_Read( &v, sizeof(v), f );
-
-	return LittleShort( v);
-}
-
-// returns the length of the data in the chunk, or 0 if not found
-int S_FindWavChunk( fileHandle_t f, char *chunk ) {
-	char	name[5];
-	int		len;
-	int		r;
-
-	name[4] = 0;
-	len = 0;
-	r = FS_Read( name, 4, f );
-	if ( r != 4 ) {
-		return 0;
-	}
-	len = FGetLittleLong( f );
-	if ( len < 0 || len > 0xfffffff ) {
-		len = 0;
-		return 0;
-	}
-	len = (len + 1 ) & ~1;		// pad to word boundary
-//	s_nextWavChunk += len + 8;
-
-	if ( strcmp( name, chunk ) ) {
-		return 0;
-	}
-
-	return len;
-}
-
 /*
 ============
-S_FileExists
+S_BackgroundTrackHasOggExtension
 
-Returns qtrue if the filesystem can open the requested path.
+Returns qtrue when the supplied music path already ends in .ogg.
 ============
 */
-static qboolean S_FileExists( const char *path ) {
-	fileHandle_t	f;
-	int			len;
+static qboolean S_BackgroundTrackHasOggExtension( const char *path ) {
+	const char	*extension;
 
 	if ( !path || !path[0] ) {
 		return qfalse;
 	}
 
-	len = FS_FOpenFileRead( path, &f, qtrue );
-	if ( !f ) {
-		return qfalse;
-	}
-	FS_FCloseFile( f );
-	return ( len >= 0 );
+	extension = Q_strrchr( path, '.' );
+	return ( extension && !Q_stricmp( extension, ".ogg" ) );
 }
 
 /*
 ============
-S_SetTrackExtension
+S_SetOggTrackPath
 
-Replaces the extension on the provided source path.
+Normalizes the provided music path to the retail OGG background-track path.
 ============
 */
-static void S_SetTrackExtension( const char *source, const char *extension, char *dest, int destSize ) {
-	char	base[MAX_QPATH];
+static void S_SetOggTrackPath( const char *source, char *dest, int destSize ) {
+	char	stripped[MAX_QPATH];
 
-	if ( !source || !dest || destSize <= 0 ) {
+	if ( !dest || destSize <= 0 ) {
 		return;
 	}
 
-	COM_StripExtension( source, base );
-	Com_sprintf( dest, destSize, "%s%s", base, extension );
-}
-
-/*
-============
-S_ResolveMusicFile
-
-Normalizes the music path and infers an extension when missing.
-============
-*/
-static qboolean S_ResolveMusicFile( const char *input, char *resolved, int resolvedSize, qboolean *isOgg ) {
-	const char	*dot;
-	char		candidate[MAX_QPATH];
-
-	if ( isOgg ) {
-		*isOgg = qfalse;
+	dest[0] = '\0';
+	if ( !source || !source[0] ) {
+		return;
 	}
 
-	if ( !resolved || resolvedSize <= 0 ) {
-		return qfalse;
+	if ( S_BackgroundTrackHasOggExtension( source ) ) {
+		Q_strncpyz( dest, source, destSize );
+		return;
 	}
 
-	if ( !input || !input[0] ) {
-		resolved[0] = '\0';
-		return qfalse;
-	}
-
-	Q_strncpyz( resolved, input, resolvedSize );
-	dot = strrchr( resolved, '.' );
-	if ( dot ) {
-		if ( !Q_stricmp( dot + 1, "ogg" ) && isOgg ) {
-			*isOgg = qtrue;
-		}
-		return qtrue;
-	}
-
-	Q_strncpyz( candidate, resolved, sizeof( candidate ) );
-	COM_DefaultExtension( candidate, sizeof( candidate ), ".ogg" );
-	if ( S_FileExists( candidate ) ) {
-		Q_strncpyz( resolved, candidate, resolvedSize );
-		if ( isOgg ) {
-			*isOgg = qtrue;
-		}
-		return qtrue;
-	}
-
-	Q_strncpyz( candidate, resolved, sizeof( candidate ) );
-	COM_DefaultExtension( candidate, sizeof( candidate ), ".wav" );
-	Q_strncpyz( resolved, candidate, resolvedSize );
-	return qtrue;
+	COM_StripExtension( source, stripped );
+	Q_strncpyz( dest, stripped, destSize );
+	COM_DefaultExtension( dest, destSize, ".ogg" );
 }
 
 /*
@@ -1713,7 +1601,6 @@ static qboolean S_OpenBackgroundOgg( const char *name ) {
 	s_backgroundInfo.rate = S_OggStreamRate( &s_backgroundOgg );
 	s_backgroundInfo.width = S_OggStreamWidth( &s_backgroundOgg );
 	s_backgroundInfo.samples = 0;
-	s_backgroundSamples = 0;
 
 	if ( s_backgroundInfo.channels <= 0 || s_backgroundInfo.width <= 0 || s_backgroundInfo.rate <= 0 ) {
 		S_OggStreamClose( &s_backgroundOgg );
@@ -1721,66 +1608,6 @@ static qboolean S_OpenBackgroundOgg( const char *name ) {
 		return qfalse;
 	}
 
-	return qtrue;
-}
-
-/*
-============
-S_OpenBackgroundWav
-
-Loads the WAV header for the requested music track and begins streaming.
-============
-*/
-static qboolean S_OpenBackgroundWav( const char *name ) {
-	char	dump[16];
-	int		len;
-
-	FS_FOpenFileRead( name, &s_backgroundFile, qtrue );
-	if ( !s_backgroundFile ) {
-		Com_Printf( S_COLOR_YELLOW "WARNING: couldn't open music file %s\n", name );
-		return qfalse;
-	}
-
-	FS_Read( dump, 12, s_backgroundFile );
-
-	if ( !S_FindWavChunk( s_backgroundFile, "fmt " ) ) {
-		Com_Printf( "No fmt chunk in %s\n", name );
-		FS_FCloseFile( s_backgroundFile );
-		s_backgroundFile = 0;
-		return qfalse;
-	}
-
-	s_backgroundInfo.format = FGetLittleShort( s_backgroundFile );
-	s_backgroundInfo.channels = FGetLittleShort( s_backgroundFile );
-	s_backgroundInfo.rate = FGetLittleLong( s_backgroundFile );
-	FGetLittleLong( s_backgroundFile );
-	FGetLittleShort( s_backgroundFile );
-	s_backgroundInfo.width = FGetLittleShort( s_backgroundFile ) / 8;
-
-	if ( s_backgroundInfo.format != WAV_FORMAT_PCM ) {
-		FS_FCloseFile( s_backgroundFile );
-		s_backgroundFile = 0;
-		Com_Printf( "Not a microsoft PCM format wav: %s\n", name );
-		return qfalse;
-	}
-
-	if ( s_backgroundInfo.channels != 2 || s_backgroundInfo.rate != 22050 ) {
-		Com_Printf( S_COLOR_YELLOW "WARNING: music file %s is not 22k stereo\n", name );
-	}
-
-	len = S_FindWavChunk( s_backgroundFile, "data" );
-	if ( len == 0 ) {
-		FS_FCloseFile( s_backgroundFile );
-		s_backgroundFile = 0;
-		Com_Printf( "No data chunk in %s\n", name );
-		return qfalse;
-	}
-
-	s_backgroundInfo.samples = len / ( s_backgroundInfo.width * s_backgroundInfo.channels );
-	s_backgroundSamples = s_backgroundInfo.samples;
-
-	Sys_BeginStreamedFile( s_backgroundFile, 0x10000 );
-	s_backgroundIsOgg = qfalse;
 	return qtrue;
 }
 
@@ -1797,7 +1624,7 @@ static qboolean S_BackgroundTrackLoop( void ) {
 	}
 
 	S_StartBackgroundTrack( s_backgroundLoop, s_backgroundLoop );
-	return ( s_backgroundFile || S_OggStreamActive( &s_backgroundOgg ) );
+	return S_OggStreamActive( &s_backgroundOgg );
 }
 
 /*
@@ -1828,17 +1655,16 @@ S_StopBackgroundTrack
 ======================
 */
 void S_StopBackgroundTrack( void ) {
-if ( s_backgroundFile ) {
-Sys_EndStreamedFile( s_backgroundFile );
-FS_FCloseFile( s_backgroundFile );
-s_backgroundFile = 0;
-}
-if ( S_OggStreamActive( &s_backgroundOgg ) ) {
-S_OggStreamClose( &s_backgroundOgg );
-}
-s_backgroundIsOgg = qfalse;
-s_backgroundSamples = 0;
-s_rawend = 0;
+	if ( s_backgroundFile ) {
+		Sys_EndStreamedFile( s_backgroundFile );
+		FS_FCloseFile( s_backgroundFile );
+		s_backgroundFile = 0;
+	}
+	if ( S_OggStreamActive( &s_backgroundOgg ) ) {
+		S_OggStreamClose( &s_backgroundOgg );
+	}
+	s_backgroundIsOgg = qfalse;
+	s_rawend = 0;
 }
 
 /*
@@ -1848,36 +1674,20 @@ S_StartBackgroundTrack
 */
 void S_StartBackgroundTrack( const char *intro, const char *loop ){
 	char	introPath[MAX_QPATH];
-	char	loopPath[MAX_QPATH];
-	char	fallback[MAX_QPATH];
-	qboolean	introIsOgg;
-	qboolean	success;
 
-	if ( !intro ) {
-		intro = "";
+	if ( !intro || !intro[0] ) {
+		return;
 	}
 	if ( !loop || !loop[0] ) {
 		loop = intro;
 	}
 	Com_DPrintf( "S_StartBackgroundTrack( %s, %s )\n", intro, loop );
 
-	if ( !intro[0] ) {
-		return;
+	if ( !S_BackgroundTrackHasOggExtension( intro ) ) {
+		Com_DPrintf( "S_StartBackgroundTrack: %s should have an OGG extension\n", intro );
 	}
-
-	introIsOgg = qfalse;
-	success = qfalse;
-
-	if ( !S_ResolveMusicFile( intro, introPath, sizeof( introPath ), &introIsOgg ) ) {
-		Com_Printf( S_COLOR_YELLOW "WARNING: couldn't resolve music file %s\n", intro );
-		return;
-	}
-
-	if ( S_ResolveMusicFile( loop, loopPath, sizeof( loopPath ), NULL ) ) {
-		Q_strncpyz( s_backgroundLoop, loopPath, sizeof( s_backgroundLoop ) );
-	} else {
-		s_backgroundLoop[0] = '\0';
-	}
+	S_SetOggTrackPath( loop, s_backgroundLoop, sizeof( s_backgroundLoop ) );
+	S_SetOggTrackPath( intro, introPath, sizeof( introPath ) );
 
 	// close the background track, but DON'T reset s_rawend
 	// if restarting the same back ground track
@@ -1891,22 +1701,8 @@ void S_StartBackgroundTrack( const char *intro, const char *loop ){
 	}
 	s_backgroundIsOgg = qfalse;
 
-	if ( introIsOgg ) {
-		if ( S_OpenBackgroundOgg( introPath ) ) {
-			success = qtrue;
-		} else {
-S_SetTrackExtension( introPath, ".wav", fallback, sizeof( fallback ) );
-Com_Printf( S_COLOR_YELLOW "WARNING: couldn't decode Vorbis music file %s, falling back to WAV\n", introPath );
-			if ( s_backgroundLoop[0] && !Q_stricmp( s_backgroundLoop, introPath ) ) {
-				Q_strncpyz( s_backgroundLoop, fallback, sizeof( s_backgroundLoop ) );
-			}
-			success = S_OpenBackgroundWav( fallback );
-		}
-	} else {
-		success = S_OpenBackgroundWav( introPath );
-	}
-
-	if ( !success ) {
+	if ( !S_OpenBackgroundOgg( introPath ) ) {
+		Com_Printf( S_COLOR_YELLOW "WARNING: couldn't open music file %s\n", introPath );
 		return;
 	}
 }
@@ -1923,10 +1719,8 @@ void S_UpdateBackgroundTrack( void ) {
 	int		fileBytes;
 	int		r;
 	static	float	musicVolume = 0.5f;
-	qboolean	usingOgg;
 
-	usingOgg = ( s_backgroundIsOgg && S_OggStreamActive( &s_backgroundOgg ) );
-	if ( !s_backgroundFile && !usingOgg ) {
+	if ( !S_OggStreamActive( &s_backgroundOgg ) ) {
 		return;
 	}
 
@@ -1959,66 +1753,21 @@ void S_UpdateBackgroundTrack( void ) {
 			fileSamples = fileBytes / (s_backgroundInfo.width * s_backgroundInfo.channels);
 		}
 
-		if ( usingOgg ) {
-			r = S_OggUpdateBackgroundTrack( raw, fileBytes );
-			fileSamples = r / (s_backgroundInfo.width * s_backgroundInfo.channels);
-		} else {
-			// don't try and read past the end of the file
-			if ( fileSamples > s_backgroundSamples ) {
-				fileSamples = s_backgroundSamples;
-			}
-
-			fileBytes = fileSamples * (s_backgroundInfo.width * s_backgroundInfo.channels);
-			if ( fileBytes > sizeof( raw ) ) {
-				fileBytes = sizeof( raw );
-				fileSamples = fileBytes / (s_backgroundInfo.width * s_backgroundInfo.channels);
-			}
-
-			if ( fileSamples <= 0 ) {
-				if ( !S_BackgroundTrackLoop() ) {
-					S_StopBackgroundTrack();
-					return;
-				}
-				usingOgg = ( s_backgroundIsOgg && S_OggStreamActive( &s_backgroundOgg ) );
-				continue;
-			}
-
-			r = Sys_StreamedRead( raw, 1, fileBytes, s_backgroundFile );
-			if ( r != fileBytes ) {
-				Com_Printf("StreamedRead failure on music track\n");
-				S_StopBackgroundTrack();
-				return;
-			}
-
-			// byte swap if needed
-			S_ByteSwapRawSamples( fileSamples, s_backgroundInfo.width, s_backgroundInfo.channels, raw );
-		}
+		r = S_OggUpdateBackgroundTrack( raw, fileBytes );
+		fileSamples = r / (s_backgroundInfo.width * s_backgroundInfo.channels);
 
 		// add to raw buffer
 		S_RawSamples( fileSamples, s_backgroundInfo.rate,
 			s_backgroundInfo.width, s_backgroundInfo.channels, raw, musicVolume );
 
-		if ( usingOgg ) {
-			if ( r < fileBytes ) {
-				s_backgroundIsOgg = qfalse;
-				if ( !S_BackgroundTrackLoop() ) {
-					S_StopBackgroundTrack();
-					return;
-				}
-				usingOgg = ( s_backgroundIsOgg && S_OggStreamActive( &s_backgroundOgg ) );
-			}
-			continue;
-		}
-
-		s_backgroundSamples -= fileSamples;
-		if ( s_backgroundSamples <= 0 ) {
+		if ( r < fileBytes || fileBytes == 0 ) {
+			s_backgroundIsOgg = qfalse;
 			if ( !S_BackgroundTrackLoop() ) {
 				S_StopBackgroundTrack();
 				return;
 			}
-			usingOgg = ( s_backgroundIsOgg && S_OggStreamActive( &s_backgroundOgg ) );
 		}
-}
+	}
 }
 
 

@@ -470,6 +470,8 @@ qboolean QL_Steamworks_ServerSetPasswordProtected( qboolean passwordProtected );
 
 qboolean QL_Steamworks_ServerGetSteamID( uint32_t *outIdLow, uint32_t *outIdHigh );
 
+qboolean QL_Steamworks_ServerCreateUnauthenticatedUserConnection( uint32_t *outIdLow, uint32_t *outIdHigh );
+
 qboolean QL_Steamworks_ServerSetGameTags( const char *tags );
 
 qboolean QL_Steamworks_ServerSetKeyValue( const char *key, const char *value );
@@ -989,6 +991,21 @@ QL_Steamworks_ServerGetSteamID
 =============
 */
 static inline qboolean QL_Steamworks_ServerGetSteamID( uint32_t *outIdLow, uint32_t *outIdHigh ) {
+	if ( outIdLow ) {
+		*outIdLow = 0u;
+	}
+	if ( outIdHigh ) {
+		*outIdHigh = 0u;
+	}
+	return qfalse;
+}
+
+/*
+=============
+QL_Steamworks_ServerCreateUnauthenticatedUserConnection
+=============
+*/
+static inline qboolean QL_Steamworks_ServerCreateUnauthenticatedUserConnection( uint32_t *outIdLow, uint32_t *outIdHigh ) {
 	if ( outIdLow ) {
 		*outIdLow = 0u;
 	}
