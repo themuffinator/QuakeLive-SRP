@@ -212,7 +212,7 @@ void S_Init( void ) {
 	if ( r ) {
 		s_soundStarted = 1;
 		s_soundMuted = 1;
-//		s_numSfx = 0;
+		s_numSfx = 0;
 
 		Com_Memset(sfxHash, 0, sizeof(sfx_t *)*LOOP_HASH);
 
@@ -246,7 +246,6 @@ channel_t*	S_ChannelMalloc() {
 
 void S_ChannelSetup() {
 	channel_t *p, *q;
-	static qboolean s_channelInitPrinted = qfalse;
 
 	// clear all the sounds so they don't
 	Com_Memset( s_channels, 0, sizeof( s_channels ) );
@@ -259,10 +258,7 @@ void S_ChannelSetup() {
 	
 	*(channel_t **)q = NULL;
 	freelist = p + MAX_CHANNELS - 1;
-	if ( !s_channelInitPrinted ) {
-		Com_DPrintf("Channel memory manager started\n");
-		s_channelInitPrinted = qtrue;
-	}
+	Com_DPrintf("Channel memory manager started\n");
 }
 
 // =======================================================================
@@ -1101,7 +1097,7 @@ void S_RawSamples( int samples, int rate, int width, int s_channels, const byte 
 		return;
 	}
 
-	intVolume = 256 * volume;
+	intVolume = 256 * volume * s_volume->value;
 
 	if ( s_rawend < s_soundtime ) {
 		Com_DPrintf( "S_RawSamples: resetting minimum: %i < %i\n", s_rawend, s_soundtime );
@@ -1335,7 +1331,6 @@ void S_Update( void ) {
 	channel_t	*ch;
 
 	if ( !s_soundStarted || s_soundMuted ) {
-		Com_DPrintf ("not started or muted\n");
 		return;
 	}
 
@@ -1347,7 +1342,7 @@ void S_Update( void ) {
 		ch = s_channels;
 		for (i=0 ; i<MAX_CHANNELS; i++, ch++) {
 			if (ch->thesfx && (ch->leftvol || ch->rightvol) ) {
-				Com_Printf ("%f %f %s\n", ch->leftvol, ch->rightvol, ch->thesfx->soundName);
+				Com_Printf ("%3i %3i %s\n", ch->leftvol, ch->rightvol, ch->thesfx->soundName);
 				total++;
 			}
 		}

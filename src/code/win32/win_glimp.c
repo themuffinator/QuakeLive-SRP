@@ -1976,10 +1976,6 @@ static void GLW_StartOpenGL( void )
 void GLimp_Init( void )
 {
 	char	buf[1024];
-	const GLubyte *glVendorString;
-	const GLubyte *glRendererString;
-	const GLubyte *glVersionString;
-	const GLubyte *glExtensionsString;
 	cvar_t *lastValidRenderer = ri.Cvar_Get( "r_lastValidRenderer", "(uninitialized)", CVAR_ARCHIVE );
 	cvar_t	*cv;
 
@@ -2007,23 +2003,10 @@ void GLimp_Init( void )
 	GLW_StartOpenGL();
 
 	// get our config strings
-	glVendorString = qglGetString( GL_VENDOR );
-	glRendererString = qglGetString( GL_RENDERER );
-	glVersionString = qglGetString( GL_VERSION );
-	glExtensionsString = qglGetString( GL_EXTENSIONS );
-	if ( !glVendorString || !glRendererString || !glVersionString )
-	{
-		ri.Error( ERR_FATAL, "GLimp_Init() - OpenGL context is not current\n" );
-	}
-	if ( !glExtensionsString )
-	{
-		ri.Printf( PRINT_WARNING, "WARNING: GL_EXTENSIONS unavailable; continuing without extension string\n" );
-		glExtensionsString = (const GLubyte *)"";
-	}
-	Q_strncpyz( glConfig.vendor_string, (const char *)glVendorString, sizeof( glConfig.vendor_string ) );
-	Q_strncpyz( glConfig.renderer_string, (const char *)glRendererString, sizeof( glConfig.renderer_string ) );
-	Q_strncpyz( glConfig.version_string, (const char *)glVersionString, sizeof( glConfig.version_string ) );
-	Q_strncpyz( glConfig.extensions_string, (const char *)glExtensionsString, sizeof( glConfig.extensions_string ) );
+	Q_strncpyz( glConfig.vendor_string, qglGetString (GL_VENDOR), sizeof( glConfig.vendor_string ) );
+	Q_strncpyz( glConfig.renderer_string, qglGetString (GL_RENDERER), sizeof( glConfig.renderer_string ) );
+	Q_strncpyz( glConfig.version_string, qglGetString (GL_VERSION), sizeof( glConfig.version_string ) );
+	Q_strncpyz( glConfig.extensions_string, qglGetString (GL_EXTENSIONS), sizeof( glConfig.extensions_string ) );
 	ri.Cvar_Set( "r_gl_vendor", glConfig.vendor_string );
 	ri.Cvar_Set( "r_gl_renderer", glConfig.renderer_string );
 

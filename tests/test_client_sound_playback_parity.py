@@ -24,6 +24,8 @@ WIN_SND = REPO_ROOT / "src" / "code" / "win32" / "win_snd.c"
 
 
 CORE_SOUND_ALIASES = {
+	"sub_4D9C50": ("S_ChannelSetup", "FUN_004d9c50", "74"),
+	"sub_4D9CA0": ("S_Shutdown", "FUN_004d9ca0", "83"),
 	"sub_4D9EF0": ("S_SpatializeOrigin", "FUN_004d9ef0", "352"),
 	"sub_4DA050": ("S_StartSoundVolume", "FUN_004da050", "760"),
 	"sub_4DA350": ("S_StartSound", "FUN_004da350", "35"),
@@ -35,9 +37,13 @@ CORE_SOUND_ALIASES = {
 	"sub_4DAC80": ("S_UpdateEntityPosition", "FUN_004dac80", "72"),
 	"sub_4DACD0": ("S_Respatialize", "FUN_004dacd0", "351"),
 	"sub_4DAE30": ("S_ScanChannelStarts", "FUN_004dae30", "413"),
+	"sub_4DB490": ("S_GetSoundtime", "FUN_004db490", "209"),
 	"sub_4DB3F0": ("S_StartLocalSound", "FUN_004db3f0", "82"),
+	"sub_4DB450": ("S_StopAllSounds", "FUN_004db450", "49"),
 	"sub_4DB570": ("S_Update_", "FUN_004db570", "262"),
 	"sub_4DB680": ("S_Update", "FUN_004db680", "129"),
+	"sub_4DB870": ("S_Init", "FUN_004db870", "593"),
+	"sub_4DBAD0": ("S_DisableSounds", "FUN_004dbad0", "59"),
 }
 
 
@@ -116,6 +122,82 @@ def test_sound_init_cvar_surface_drops_legacy_rate_and_separation_controls() -> 
 	assert "extern cvar_t\t*s_separation;" not in snd_local
 	assert "s_khz->integer" not in win_snd
 	assert "\tdma.speed = 22050;" in win_snd
+
+
+def test_sound_lifecycle_setup_shutdown_and_disable_match_retail_state_edges() -> None:
+	hlil = _read(QL_STEAM_HLIL)
+	source = _read(SND_DMA)
+	channel_setup_block = _function_block(source, "void S_ChannelSetup()")
+	shutdown_block = _function_block(source, "void S_Shutdown( void )")
+	init_block = _function_block(source, "void S_Init( void )")
+	disable_block = _function_block(source, "void S_DisableSounds( void )")
+
+	for expected in (
+		"004d9c50    void* sub_4d9c50()",
+		"004d9c5c  sub_4c95e0(&data_14298c0, 0, 0x1500)",
+		"004d9c7c  for (i = &data_142ad88; i u> &data_14298c0; i -= 0x38)",
+		"004d9c89  data_12c5b78 = &data_142ad88",
+		'004d9c99  return sub_4c9ab0("Channel memory manager started\\n")',
+		"004d9ca0    void sub_4d9ca0()",
+		"004d9ca9      sub_4dbba0()",
+		"004d9cae      sub_4efa30()",
+		"004d9cb8      data_126094c = 0",
+		'004d9cc2      sub_4c8270("play")',
+		'004d9ccc      sub_4c8270("music")',
+		'004d9cd6      sub_4c8270("s_list")',
+		'004d9ce0      sub_4c8270("s_info")',
+		'004d9cea      sub_4c8270("s_stop")',
+		"004dba70  data_126094c = 1",
+		"004dba75  data_1260934 = 1",
+		"004dba7a  data_1260928 = 0",
+		"004dba80  sub_4c95e0(&data_12c5950, 0, 0x200)",
+		"004dbab5      sub_4da3e0()",
+		"004dbad0    void sub_4dbad0()",
+		"004dbafb      sub_4da3e0()",
+		"004dbb00  data_1260934 = 1",
+	):
+		assert expected in hlil
+
+	for expected in (
+		"Com_Memset( s_channels, 0, sizeof( s_channels ) );",
+		"while (--q > p) {",
+		"*(channel_t **)q = q-1;",
+		"*(channel_t **)q = NULL;",
+		"freelist = p + MAX_CHANNELS - 1;",
+		'Com_DPrintf("Channel memory manager started\\n");',
+	):
+		assert expected in channel_setup_block
+
+	assert "s_channelInitPrinted" not in channel_setup_block
+	assert 'if ( !s_channelInitPrinted ) {' not in channel_setup_block
+
+	for expected in (
+		"SND_shutdown();",
+		"SNDDMA_Shutdown();",
+		"s_soundStarted = 0;",
+		'Cmd_RemoveCommand("play");',
+		'Cmd_RemoveCommand("music");',
+		'Cmd_RemoveCommand("s_list");',
+		'Cmd_RemoveCommand("s_info");',
+		'Cmd_RemoveCommand("s_stop");',
+	):
+		assert expected in shutdown_block
+
+	for expected in (
+		"s_soundStarted = 1;",
+		"s_soundMuted = 1;",
+		"s_numSfx = 0;",
+		"Com_Memset(sfxHash, 0, sizeof(sfx_t *)*LOOP_HASH);",
+		"s_soundtime = 0;",
+		"s_paintedtime = 0;",
+		"S_StopAllSounds ();",
+		"S_SoundInfo_f();",
+	):
+		assert expected in init_block
+
+	assert "//\t\ts_numSfx = 0;" not in init_block
+	assert "S_StopAllSounds();" in disable_block
+	assert "s_soundMuted = qtrue;" in disable_block
 
 
 def test_sound_spatializer_uses_retail_max_distance_falloff() -> None:
@@ -263,8 +345,12 @@ def test_sound_buffer_loop_raw_and_update_helpers_match_retail_wiring() -> None:
 		"sub_4d9ef0(&var_8, &var_c, i - 0x2c, 0x7f)",
 		"sub_4d9ef0(&var_20, &var_1c, j - 0x28, 0x7f)",
 		"004da840    void sub_4da840(int32_t arg1, int32_t arg2, int32_t arg3, int32_t arg4, int32_t arg5, float arg6)",
+		"004da876      int32_t eax_2 = sub_526000(fconvert.t(*(data_13e185c + 0x2c)) * fconvert.t(arg6)",
+		"* fconvert.t(256.0))",
 		'char const data_544108[0x22] = "S_RawSamples: overflowed %i > %i\\n", 0',
 		'char const data_54412c[0x2a] = "S_RawSamples: resetting minimum: %i < %i\\n", 0',
+		"004db9d9  data_13e185c =",
+		'004db9d9      sub_4cdd30(x87_r2, x87_r3, x87_r4, "s_volume", "0.8", "0.0", "2.0", 0x81801)',
 		"004dac80    void* sub_4dac80(int32_t arg1, float* arg2)",
 		'char const data_544270[0x29] = "S_UpdateEntityPosition: bad entitynum %i", 0',
 		"004dacd0    float* sub_4dacd0(int32_t arg1, float* arg2, float* arg3, int32_t arg4)",
@@ -273,7 +359,18 @@ def test_sound_buffer_loop_raw_and_update_helpers_match_retail_wiring() -> None:
 		"004db557          return eax_8",
 		"004db560  return eax_6",
 		"004db570    void sub_4db570()",
+		"004db5a6      if (data_142c334 != 0)",
+		"004db5b2          if (data_142c2ec s> 0x40000000)",
+		"004db5c8          data_142c2e0 = data_142c2ec",
+		"004db5d2          esi_1 = sub_4efb80()",
+		"004db5d6      sub_4db490()",
+		"004db655          sub_4efbf0()",
 		"004db680    void sub_4db680()",
+		"004db690  if (data_126094c == 0 || data_1260934 != 0)",
+		"004db69b  if (*(data_142c2fc + 0x30) == 2)",
+		'004db6cf                  sub_4c9860(esi_1, "%3i %3i %s\\n")',
+		'char const data_5443ac[0xc] = "%3i %3i %s\\n", 0',
+		'char const data_544390[0x1a] = "----(%i)---- painted: %i\\n", 0',
 		'004db6f6  sub_4db1c0()',
 		"004db6fb  return sub_4db570() __tailcall",
 	):
@@ -328,11 +425,12 @@ def test_sound_buffer_loop_raw_and_update_helpers_match_retail_wiring() -> None:
 	for expected in (
 		'Com_DPrintf( "S_RawSamples: resetting minimum: %i < %i\\n", s_rawend, s_soundtime );',
 		"scale = (float)rate / dma.speed;",
-		"intVolume = 256 * volume;",
+		"intVolume = 256 * volume * s_volume->value;",
 		"intVolume *= 256;",
 		'Com_DPrintf( "S_RawSamples: overflowed %i > %i\\n", s_rawend, s_soundtime );',
 	):
 		assert expected in raw_block
+	assert "intVolume = 256 * volume;" not in raw_block
 
 	assert 'Com_Error( ERR_DROP, "S_UpdateEntityPosition: bad entitynum %i", entityNum );' in position_block
 	assert "VectorCopy( origin, loopSounds[entityNum].origin );" in position_block
@@ -347,12 +445,15 @@ def test_sound_buffer_loop_raw_and_update_helpers_match_retail_wiring() -> None:
 		assert expected in respatialize_block
 
 	for expected in (
-		'Com_DPrintf ("not started or muted\\n");',
 		"if ( s_show->integer == 2 ) {",
+		'Com_Printf ("%3i %3i %s\\n", ch->leftvol, ch->rightvol, ch->thesfx->soundName);',
+		'Com_Printf ("----(%i)---- painted: %i\\n", total, s_paintedtime);',
 		"S_UpdateBackgroundTrack();",
 		"S_Update_();",
 	):
 		assert expected in update_block
+	assert 'Com_DPrintf ("not started or muted\\n");' not in update_block
+	assert 'Com_Printf ("%f %f %s\\n", ch->leftvol, ch->rightvol, ch->thesfx->soundName);' not in update_block
 
 	for expected in (
 		"S_GetSoundtime();",

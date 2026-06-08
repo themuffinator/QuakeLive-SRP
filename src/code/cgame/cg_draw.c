@@ -5135,19 +5135,19 @@ static void CG_PlayWarmupCountSound( int countdown ) {
 	switch ( countdown ) {
 	case 3:
 		if ( cgs.media.count3Sound ) {
-			trap_S_StartLocalSound( cgs.media.count3Sound, CHAN_ANNOUNCER );
+			trap_QL_S_StartLocalSoundVolume( cgs.media.count3Sound, CHAN_ANNOUNCER, s_announcerVolume.value );
 		}
 		break;
 
 	case 2:
 		if ( cgs.media.count2Sound ) {
-			trap_S_StartLocalSound( cgs.media.count2Sound, CHAN_ANNOUNCER );
+			trap_QL_S_StartLocalSoundVolume( cgs.media.count2Sound, CHAN_ANNOUNCER, s_announcerVolume.value );
 		}
 		break;
 
 	case 1:
 		if ( cgs.media.count1Sound ) {
-			trap_S_StartLocalSound( cgs.media.count1Sound, CHAN_ANNOUNCER );
+			trap_QL_S_StartLocalSoundVolume( cgs.media.count1Sound, CHAN_ANNOUNCER, s_announcerVolume.value );
 		}
 		break;
 
@@ -5160,12 +5160,12 @@ static void CG_PlayWarmupCountSound( int countdown ) {
 	case 5:
 		if ( cgs.matchTimeoutActive ) {
 			if ( cgs.media.countPrepareSound ) {
-				trap_S_StartLocalSound( cgs.media.countPrepareSound, CHAN_ANNOUNCER );
+				trap_QL_S_StartLocalSoundVolume( cgs.media.countPrepareSound, CHAN_ANNOUNCER, s_announcerVolume.value );
 			}
 		} else if ( CG_IsRoundStartGametype( cgs.gametype )
 			&& ( cgs.gametype != GT_FREEZE || countdown >= 5 ) ) {
 			if ( cgs.media.roundBeginsInSound ) {
-				trap_S_StartLocalSound( cgs.media.roundBeginsInSound, CHAN_ANNOUNCER );
+				trap_QL_S_StartLocalSoundVolume( cgs.media.roundBeginsInSound, CHAN_ANNOUNCER, s_announcerVolume.value );
 			}
 		}
 		break;

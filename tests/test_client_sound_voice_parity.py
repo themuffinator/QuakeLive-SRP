@@ -35,7 +35,10 @@ SOUND_HELPER_ALIASES = {
 	"sub_4D9B20": ("S_SoundFileTypeForPath", "FUN_004d9b20", "63"),
 	"sub_4DAB00": ("S_AddVoiceSamples", "FUN_004dab00", "373"),
 	"sub_4DB1C0": ("S_UpdateBackgroundTrack", "FUN_004db1c0", "347"),
+	"sub_4DBB10": ("SND_free", "FUN_004dbb10", "31"),
+	"sub_4DBB30": ("SND_setup", "FUN_004dbb30", "106"),
 	"sub_4DBBA0": ("SND_shutdown", "FUN_004dbba0", "50"),
+	"sub_4DBBE0": ("S_DisplayFreeMemory", "FUN_004dbbe0", "27"),
 	"sub_4DBD00": ("S_LoadSound", "FUN_004dbd00", "228"),
 	"sub_4DC6A0": ("S_VorbisBufferRead", "FUN_004dc6a0", "62"),
 	"sub_4DC6E0": ("S_VorbisBufferSeek", "FUN_004dc6e0", "61"),
@@ -479,20 +482,90 @@ def test_platform_steam_voice_wrappers_use_retail_slots() -> None:
 
 
 def test_sound_cache_and_shutdown_match_retail_allocator_contracts() -> None:
+	hlil = QL_STEAM_HLIL.read_text(encoding="utf-8")
 	snd_dma = SND_DMA.read_text(encoding="utf-8")
 	snd_mem = SND_MEM.read_text(encoding="utf-8")
 
 	shutdown_block = _extract_function_block(snd_dma, "void S_Shutdown( void )")
 	begin_block = _extract_function_block(snd_dma, "void S_BeginRegistration( void )")
+	free_block = _extract_function_block(snd_mem, "void\tSND_free")
+	malloc_block = _extract_function_block(snd_mem, "sndBuffer*\tSND_malloc")
+	snd_setup_block = _extract_function_block(snd_mem, "void SND_setup()")
+	snd_shutdown_block = _extract_function_block(snd_mem, "void SND_shutdown( void )")
+	display_block = _extract_function_block(snd_mem, "void S_DisplayFreeMemory()")
 	file_block = _extract_function_block(snd_mem, "static qboolean S_OpenSoundFile")
 	pcm_block = _extract_function_block(snd_mem, "static qboolean S_LoadPCMSound")
 	ogg_block = _extract_function_block(snd_mem, "static qboolean S_LoadOggSound")
 	wav_block = _extract_function_block(snd_mem, "static qboolean S_LoadWavSound")
 	load_block = _extract_function_block(snd_mem, "qboolean S_LoadSound( sfx_t *sfx )")
 
+	for expected in (
+		"004dbb10    int32_t* sub_4dbb10(int32_t* arg1)",
+		"004dbb1c  data_12c5b8c += 0x808",
+		"004dbb28  data_12c5b88 = arg1",
+		"004dbb30    int32_t sub_4dbb30()",
+		'004dbb48  int32_t esi_2 = sub_4ce0d0(x87_r0, "com_soundMegs", "16", 0x21)[0xc] * 0x202000',
+		"004dbb51  data_12c5b8c = esi_2",
+		"004dbb68  data_12c5b84 = eax_2",
+		"004dbb8a  data_12c5b88 = esi_2 + eax_2 - 0x808",
+		'004dbb99  return sub_4c9860(esi_2 + eax_2 - 0x808, "Sound memory manager started\\n")',
+		"004dbba0    int32_t sub_4dbba0()",
+		"004dbba5  data_12c5b8c = 0",
+		"004dbbaf  data_12c5b90 = 0",
+		"004dbbc7      data_12c5b84 = 0",
+		"004dbbe0    int32_t sub_4dbbe0()",
+		"004dbbeb  int32_t var_4 = data_12c5b8c",
+		"004dbbec  int32_t var_8 = data_12c5b90",
+		'char const data_544528[0x2f] = "%d bytes sound buffer memory in use, %d free \\n", 0',
+		"004dbca2              data_12c5b8c -= 0x808",
+		"004dbcac              data_12c5b90 += 0x808",
+	):
+		assert expected in hlil
+
 	assert '#define DEF_COMSOUNDMEGS "16"' in snd_mem
 	assert "void SND_shutdown( void ) {" in snd_mem
-	assert 'Com_Printf("%d bytes sound buffer memory in use, %d free\\n", totalInUse, inUse);' in snd_mem
+	for expected in (
+		"*(sndBuffer **)v = freelist;",
+		"freelist = (sndBuffer*)v;",
+		"inUse += sizeof(sndBuffer);",
+	):
+		assert expected in free_block
+	assert "totalInUse -= sizeof(sndBuffer);" not in free_block
+
+	for expected in (
+		"if (freelist == NULL) {",
+		"S_FreeOldestSound();",
+		"goto redo;",
+		"inUse -= sizeof(sndBuffer);",
+		"totalInUse += sizeof(sndBuffer);",
+		"v = freelist;",
+		"freelist = *(sndBuffer **)freelist;",
+		"v->next = NULL;",
+	):
+		assert expected in malloc_block
+
+	for expected in (
+		'cv = Cvar_Get( "com_soundMegs", DEF_COMSOUNDMEGS, CVAR_LATCH | CVAR_ARCHIVE );',
+		"scs = (cv->integer*1024);",
+		"buffer = malloc(scs*sizeof(sndBuffer) );",
+		"inUse = scs*sizeof(sndBuffer);",
+		"totalInUse = 0;",
+		"freelist = p + scs - 1;",
+		'Com_Printf("Sound memory manager started\\n");',
+	):
+		assert expected in snd_setup_block
+
+	for expected in (
+		"free( buffer );",
+		"buffer = NULL;",
+		"freelist = NULL;",
+		"inUse = 0;",
+		"totalInUse = 0;",
+	):
+		assert expected in snd_shutdown_block
+
+	assert 'Com_Printf("%d bytes sound buffer memory in use, %d free \\n", totalInUse, inUse);' in display_block
+	assert 'Com_Printf("%d bytes sound buffer memory in use, %d free\\n", totalInUse, inUse);' not in display_block
 	assert "SND_shutdown();" in shutdown_block
 	assert 'Cmd_RemoveCommand("play");' in shutdown_block
 	assert 'Cmd_RemoveCommand("music");' in shutdown_block

@@ -562,6 +562,7 @@ vmCvar_t	cg_zoomSensitivity;
 vmCvar_t	cg_zoomToggle;
 vmCvar_t	cg_maxfps;
 vmCvar_t	s_killBeepVolume;
+vmCvar_t	s_announcerVolume;
 
 typedef struct {
 	vmCvar_t	*vmCvar;
@@ -879,6 +880,7 @@ static cvarTable_t cvarTable[] = { // bk001129
 	{ &cg_zoomToggle, "cg_zoomToggle", "0", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_CLOUD, "0", "1" },
 	{ &cg_maxfps, "com_maxfps", "125", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_CLOUD, "30", "250" },
 	{ &s_killBeepVolume, "s_killBeepVolume", "1", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_CLOUD, "0", "4" },
+	{ &s_announcerVolume, "s_announcerVolume", "1", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_CLOUD, "0", "4" },
 	//	{ &cg_pmove_fixed, "cg_pmove_fixed", "0", CVAR_USERINFO | CVAR_ARCHIVE }
 };
 

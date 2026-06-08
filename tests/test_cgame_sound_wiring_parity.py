@@ -8,6 +8,11 @@ from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
+CG_DRAW = REPO_ROOT / "src" / "code" / "cgame" / "cg_draw.c"
+CG_ENTS = REPO_ROOT / "src" / "code" / "cgame" / "cg_ents.c"
+CG_LOCAL = REPO_ROOT / "src" / "code" / "cgame" / "cg_local.h"
+CG_LOCALENTS = REPO_ROOT / "src" / "code" / "cgame" / "cg_localents.c"
+CG_MAIN = REPO_ROOT / "src" / "code" / "cgame" / "cg_main.c"
 CG_PLAYERS = REPO_ROOT / "src" / "code" / "cgame" / "cg_players.c"
 CG_SERVERCMDS = REPO_ROOT / "src" / "code" / "cgame" / "cg_servercmds.c"
 CG_VIEW = REPO_ROOT / "src" / "code" / "cgame" / "cg_view.c"
@@ -83,12 +88,28 @@ def test_cgame_sound_helper_aliases_and_function_table_match_retail_offsets() ->
 		"sub_1004e180": "CG_ClearBufferedAnnouncements",
 		"FUN_1004e220": "CG_PlayBufferedSounds",
 		"sub_1004e220": "CG_PlayBufferedSounds",
+		"FUN_1000eb30": "CG_PlayWarmupCountSound",
+		"sub_1000eb30": "CG_PlayWarmupCountSound",
+		"FUN_10015450": "CG_SetEntitySoundPosition",
+		"sub_10015450": "CG_SetEntitySoundPosition",
+		"FUN_1001ec10": "CG_FragmentBounceSound",
+		"sub_1001ec10": "CG_FragmentBounceSound",
+		"FUN_10020dd0": "CG_BuildAnnouncerSoundPath",
+		"sub_10020dd0": "CG_BuildAnnouncerSoundPath",
+		"FUN_10020e70": "CG_RegisterSounds",
+		"FUN_100435b0": "CG_CheckLocalSounds",
 	}
 	for symbol, expected_name in expected_aliases.items():
 		assert aliases[symbol] == expected_name
 
 	expected_rows = {
+		"1000eb30": ("FUN_1000eb30", "151"),
+		"10015450": ("FUN_10015450", "168"),
+		"1001ec10": ("FUN_1001ec10", "190"),
+		"10020dd0": ("FUN_10020dd0", "122"),
+		"10020e70": ("FUN_10020e70", "8324"),
 		"1003ca30": ("FUN_1003ca30", "156"),
+		"100435b0": ("FUN_100435b0", "1420"),
 		"1004e050": ("FUN_1004e050", "180"),
 		"1004e110": ("FUN_1004e110", "109"),
 		"1004e180": ("FUN_1004e180", "153"),
@@ -128,6 +149,97 @@ def test_cgame_custom_sound_reconstructs_retail_lookup_and_diagnostics() -> None
 		assert expected in custom_sound_block
 
 	assert 'CG_Error( "CG_CustomSound: invalid client %d", clientNum );' not in custom_sound_block
+
+
+def test_cgame_warmup_countdown_sounds_use_retail_announcer_volume_import() -> None:
+	hlil = _read(CGAME_HLIL)
+	draw_source = _read(CG_DRAW)
+	main_source = _read(CG_MAIN)
+	local_source = _read(CG_LOCAL)
+	warmup_block = _block_from_marker(draw_source, "static void CG_PlayWarmupCountSound")
+
+	for expected in (
+		"1000eb30    void __convention(\"regparm\") sub_1000eb30(uint32_t arg1)",
+		"1000eb8c          (*(data_1074cccc + 0xa0))(data_10a5fb70, 7, fconvert.s(fconvert.t(data_10a6b528)))",
+		"1000eb8c          (*(data_1074cccc + 0xa0))(data_10a5fb6c, 7, fconvert.s(fconvert.t(data_10a6b528)))",
+		"1000eb8c          (*(data_1074cccc + 0xa0))(data_10a5fb68, 7, fconvert.s(fconvert.t(data_10a6b528)))",
+		"1000eb43          if (data_10a403e0 == 0)",
+		"(*(data_1074cccc + 0xa0))(data_10a5fab4, 7,",
+		"(*(data_1074cccc + 0xa0))(data_10a5fb78, 7,",
+		"fconvert.s(fconvert.t(data_10a6b528)))",
+		'char const data_1006a930[0x12] = "s_announcerVolume", 0',
+		'char const (* data_100784d4)[0x12] = data_1006a930 {"s_announcerVolume"}',
+		"10a6b528  int32_t data_10a6b528 = 0x0",
+	):
+		assert expected in hlil
+
+	for expected in (
+		"vmCvar_t\ts_announcerVolume;",
+		'{ &s_announcerVolume, "s_announcerVolume", "1", CVAR_ARCHIVE | CVAR_PROTECTED | CVAR_VM_CREATED | CVAR_CLOUD, "0", "4" },',
+	):
+		assert expected in main_source
+
+	assert "extern\tvmCvar_t\t\ts_announcerVolume;" in local_source
+
+	for expected in (
+		"trap_QL_S_StartLocalSoundVolume( cgs.media.count3Sound, CHAN_ANNOUNCER, s_announcerVolume.value );",
+		"trap_QL_S_StartLocalSoundVolume( cgs.media.count2Sound, CHAN_ANNOUNCER, s_announcerVolume.value );",
+		"trap_QL_S_StartLocalSoundVolume( cgs.media.count1Sound, CHAN_ANNOUNCER, s_announcerVolume.value );",
+		"trap_QL_S_StartLocalSoundVolume( cgs.media.countPrepareSound, CHAN_ANNOUNCER, s_announcerVolume.value );",
+		"trap_QL_S_StartLocalSoundVolume( cgs.media.roundBeginsInSound, CHAN_ANNOUNCER, s_announcerVolume.value );",
+	):
+		assert expected in warmup_block
+
+	for legacy_sound in (
+		"count3Sound",
+		"count2Sound",
+		"count1Sound",
+		"countPrepareSound",
+		"roundBeginsInSound",
+	):
+		assert f"trap_S_StartLocalSound( cgs.media.{legacy_sound}, CHAN_ANNOUNCER );" not in warmup_block
+
+
+def test_cgame_spatial_and_fragment_sound_helpers_match_retail_wiring() -> None:
+	hlil = _read(CGAME_HLIL)
+	ents_source = _read(CG_ENTS)
+	localents_source = _read(CG_LOCALENTS)
+	set_position_block = _block_from_marker(ents_source, "void CG_SetEntitySoundPosition")
+	fragment_block = _block_from_marker(localents_source, "void CG_FragmentBounceSound")
+
+	for expected in (
+		"10015450    int32_t sub_10015450(int32_t* arg1)",
+		"1001546c  if (arg1[0x2e] != 0xffffff)",
+		"100154e4      int32_t eax_6 = (*(data_1074cccc + 0xb0))(*arg1, &arg1[0xae])",
+		"1001548d  var_10 = fconvert.s(fconvert.t(arg1[0xae]) + fconvert.t(*((ecx_1 << 2) + &data_10a410ec)))",
+		"1001ec10    int32_t __convention(\"regparm\") sub_1001ec10(int32_t arg1, void* arg2 @ esi)",
+		"1001ec2d      int32_t eax_1 = rand() & 3",
+		"1001ec5e      int32_t eax_4 = (*(data_1074cccc + 0x94))(arg1 + 0xc, 0x3fe, 0, eax_2)",
+		"1001ec82      int32_t eax_7 = rand() & 4",
+		"1001ecc0      eax_5 = (*(data_1074cccc + 0x94))(arg1 + 0xc, 0x3fe, 0, eax_8)",
+		"1001ecc6  *(arg2 + 0x9c) = 0",
+	):
+		assert expected in hlil
+
+	for expected in (
+		"if ( cent->currentState.solid == SOLID_BMODEL ) {",
+		"v = cgs.inlineModelMidpoints[ cent->currentState.modelindex ];",
+		"VectorAdd( cent->lerpOrigin, v, origin );",
+		"trap_S_UpdateEntityPosition( cent->currentState.number, origin );",
+		"trap_S_UpdateEntityPosition( cent->currentState.number, cent->lerpOrigin );",
+	):
+		assert expected in set_position_block
+
+	for expected in (
+		"if ( le->fragmentBounceSoundType == LEBS_BLOOD ) {",
+		"r = rand() & 3;",
+		"trap_S_StartSound( trace->endpos, ENTITYNUM_WORLD, CHAN_AUTO, s );",
+		"} else if ( le->fragmentBounceSoundType == LEBS_ELECTRO ) {",
+		"// Retail masks rand() with 4 here, so only sounds 01 and 04 are reachable.",
+		"if ( rand() & 4 ) {",
+		"le->fragmentBounceSoundType = LEBS_NONE;",
+	):
+		assert expected in fragment_block
 
 
 def test_cgame_server_sound_commands_preserve_retail_import_slots_and_order() -> None:

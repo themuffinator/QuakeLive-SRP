@@ -2219,6 +2219,7 @@ extern	vmCvar_t		cg_zoomSensitivity;
 extern	vmCvar_t		cg_zoomToggle;
 extern	vmCvar_t		cg_maxfps;
 extern	vmCvar_t		s_killBeepVolume;
+extern	vmCvar_t		s_announcerVolume;
 // cg_main.c
 //
 const char *CG_ConfigString( int index );
