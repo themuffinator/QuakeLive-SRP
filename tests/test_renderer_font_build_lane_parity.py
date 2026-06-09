@@ -54,6 +54,7 @@ def test_renderer_build_lane_uses_repo_managed_dependencies() -> None:
 	assert "Ensure-Vorbis" in internal_deps_script
 	assert "Ensure-Png" in internal_deps_script
 	assert "Ensure-FreeType" in internal_deps_script
+	assert "Visual Studio 18 2026" in internal_deps_script
 	assert "Ensure-GitDependencySource -Name 'libogg'" in internal_deps_script
 	assert "Ensure-GitDependencySource -Name 'libvorbis'" in internal_deps_script
 	assert "Ensure-GitDependencySource -Name 'zlib'" in internal_deps_script

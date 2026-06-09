@@ -82,6 +82,7 @@ function Get-VisualStudioGeneratorInfo {
 	}
 
 	switch ($majorVersion) {
+		18 { return [pscustomobject]@{ Generator = 'Visual Studio 18 2026'; NeedsArchitecture = $true } }
 		17 { return [pscustomobject]@{ Generator = 'Visual Studio 17 2022'; NeedsArchitecture = $true } }
 		16 { return [pscustomobject]@{ Generator = 'Visual Studio 16 2019'; NeedsArchitecture = $true } }
 		15 { return [pscustomobject]@{ Generator = 'Visual Studio 15 2017'; NeedsArchitecture = $true } }
