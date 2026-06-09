@@ -2482,11 +2482,24 @@ QLWebHost_NavigateOrOpen
 =============
 */
 static qboolean QLWebHost_NavigateOrOpen( const char *hash ) {
+	char normalizedHash[MAX_STRING_CHARS];
+	char expectedUrl[MAX_STRING_CHARS];
+
+	CL_WebHost_NormalizeHash( hash, normalizedHash, sizeof( normalizedHash ) );
+	CL_WebHost_BuildCurrentURL( normalizedHash, expectedUrl, sizeof( expectedUrl ) );
+
+	if ( cl_webHost.viewInitialised && !Q_stricmp( cl_webHost.currentUrl, expectedUrl ) ) {
+		cl_webHost.browserVisible = qtrue;
+		cl_webHost.browserActive = qtrue;
+		cl_webHost.focused = qtrue;
+		return qtrue;
+	}
+
 	if ( cl_webHost.viewInitialised && cl_webHost.documentReady && cl_webHost.windowObjectBound ) {
 #if defined( _WIN32 ) && QL_PLATFORM_HAS_ONLINE_SERVICES
 		if ( cl_webHost.liveAwesomium ) {
-			if ( !QLWebView_SetLocationHash( hash ) ) {
-				Com_Printf( "Awesomium WebView failed to update location hash %s: %s\n", hash ? hash : "", CL_Awesomium_LastError() );
+			if ( !QLWebView_SetLocationHash( normalizedHash ) ) {
+				Com_Printf( "Awesomium WebView failed to update location hash %s: %s\n", normalizedHash, CL_Awesomium_LastError() );
 				return qfalse;
 			}
 			cl_webHost.zoomPercent = CL_WebZoomIntegerValue();
@@ -2498,7 +2511,7 @@ static qboolean QLWebHost_NavigateOrOpen( const char *hash ) {
 			return qtrue;
 		}
 #endif
-		if ( !QLWebView_SetLocationHash( hash ) ) {
+		if ( !QLWebView_SetLocationHash( normalizedHash ) ) {
 			return qfalse;
 		}
 		cl_webHost.browserVisible = qtrue;
@@ -2507,7 +2520,7 @@ static qboolean QLWebHost_NavigateOrOpen( const char *hash ) {
 		return qtrue;
 	}
 
-	return QLWebHost_OpenRelativeURL( hash );
+	return QLWebHost_OpenRelativeURL( normalizedHash );
 }
 
 /*
@@ -2652,6 +2665,7 @@ static void CL_WebHost_CheckLiveAwesomiumSurfaceFailure( void ) {
 	}
 
 	if ( cl_webHost.liveSurfaceMissingFrames < CL_WEB_LIVE_SURFACE_FAILURE_FRAMES ) {
+		cl_webHost.liveSurfaceMissingFrames++;
 		return;
 	}
 
@@ -5170,7 +5184,7 @@ static void CL_WebHost_SyncMapCatalogSnapshot( void ) {
 	if ( !cl_webHost.liveAwesomium || !cl_webHost.documentReady || !cl_webHost.qzInstanceBound ) {
 		return;
 	}
-	if ( cl_webHost.mapCatalogSynced && cl_webHost.frameSequence < cl_webHost.nextMapCatalogSyncFrame ) {
+	if ( cl_webHost.mapCatalogSynced ) {
 		return;
 	}
 	if ( cl_webHost.frameSequence < cl_webHost.nextMapCatalogSyncFrame ) {
@@ -5208,7 +5222,7 @@ static void CL_WebHost_SyncMapCatalogSnapshot( void ) {
 		CL_WebHost_QueryBrowserCatalogCount( "", "GetMapList", &qzMapCount );
 		CL_WebHost_QueryBrowserCatalogCount( "../src/mapdb", "GetMapList", &moduleMapCount );
 		cl_webHost.mapCatalogSynced = qtrue;
-		cl_webHost.nextMapCatalogSyncFrame = cl_webHost.frameSequence + CL_WEB_NATIVE_MAP_SYNC_FRAMES;
+		cl_webHost.nextMapCatalogSyncFrame = 0;
 		Com_DPrintf( "Awesomium map catalog synced (%u bytes, %d qz maps, %d module maps)\n", (unsigned int)mapJsonLength, qzMapCount, moduleMapCount );
 	} else {
 		cl_webHost.nextMapCatalogSyncFrame = cl_webHost.frameSequence + CL_WEB_NATIVE_MAP_RETRY_FRAMES;
@@ -5400,7 +5414,7 @@ static void CL_WebHost_SyncFactoryCatalogSnapshot( void ) {
 	if ( !cl_webHost.liveAwesomium || !cl_webHost.documentReady || !cl_webHost.qzInstanceBound ) {
 		return;
 	}
-	if ( cl_webHost.factoryCatalogSynced && cl_webHost.frameSequence < cl_webHost.nextFactoryCatalogSyncFrame ) {
+	if ( cl_webHost.factoryCatalogSynced ) {
 		return;
 	}
 	if ( cl_webHost.frameSequence < cl_webHost.nextFactoryCatalogSyncFrame ) {
@@ -5438,7 +5452,7 @@ static void CL_WebHost_SyncFactoryCatalogSnapshot( void ) {
 		CL_WebHost_QueryBrowserCatalogCount( "", "GetFactoryList", &qzFactoryCount );
 		CL_WebHost_QueryBrowserCatalogCount( "../src/factories", "GetFactoryList", &moduleFactoryCount );
 		cl_webHost.factoryCatalogSynced = qtrue;
-		cl_webHost.nextFactoryCatalogSyncFrame = cl_webHost.frameSequence + CL_WEB_NATIVE_FACTORY_SYNC_FRAMES;
+		cl_webHost.nextFactoryCatalogSyncFrame = 0;
 		Com_DPrintf( "Awesomium factory catalog synced (%u bytes, %d qz factories, %d module factories)\n", (unsigned int)factoryJsonLength, qzFactoryCount, moduleFactoryCount );
 	} else {
 		cl_webHost.nextFactoryCatalogSyncFrame = cl_webHost.frameSequence + CL_WEB_NATIVE_FACTORY_RETRY_FRAMES;
@@ -6258,6 +6272,29 @@ static qboolean CL_BrowserHostServiceAvailable( void ) {
 
 /*
 =============
+CL_WebHost_AwesomiumPending
+
+Returns qtrue only while a requested live Awesomium browser is waiting for a
+drawable overlay surface.
+=============
+*/
+static qboolean CL_WebHost_AwesomiumPending( qboolean awesomiumAllowed ) {
+	if ( !awesomiumAllowed || cl_webHost.loadFailed ) {
+		return qfalse;
+	}
+
+	if ( !cl_webBrowserVisible
+		&& !cl_webHost.browserVisible
+		&& !cl_webHost.browserActive
+		&& !cl_webHost.loadingDocument ) {
+		return qfalse;
+	}
+
+	return CL_WebHost_SurfaceReadyForOverlay( qtrue ) ? qfalse : qtrue;
+}
+
+/*
+=============
 CL_RefreshOnlineServicesBridgeState
 
 Synchronises client-visible browser and advert bridge state with the platform-service table.
@@ -6295,6 +6332,7 @@ void CL_RefreshOnlineServicesBridgeState( void ) {
 	const ql_platform_feature_descriptor *overlay = CL_GetOverlayServiceDescriptor();
 	qboolean overlayAvailable = browserRequested && CL_OverlayServiceAvailable();
 	qboolean browserAvailable = overlayAvailable || awesomiumAllowed;
+	qboolean awesomiumPending = CL_WebHost_AwesomiumPending( awesomiumAllowed );
 
 	cl_advertisementBridge.overlayCompiled = ( overlay && overlay->compiled );
 	cl_advertisementBridge.overlayAvailable = overlayAvailable;
@@ -6302,7 +6340,7 @@ void CL_RefreshOnlineServicesBridgeState( void ) {
 	cl_advertisementBridge.viewHeight = cls.glconfig.vidHeight;
 
 	CL_SetCvarIfChanged( "ui_browserAwesomium", browserAvailable ? "1" : "0" );
-	CL_SetCvarIfChanged( "ui_browserAwesomiumPending", ( awesomiumAllowed && !cl_webHost.loadFailed ) ? "1" : "0" );
+	CL_SetCvarIfChanged( "ui_browserAwesomiumPending", awesomiumPending ? "1" : "0" );
 	CL_SetCvarIfChanged( "ui_browserAwesomiumProvider", awesomiumAllowed ? "Awesomium WebCore" : overlayProvider );
 	CL_SetCvarIfChanged( "ui_browserAwesomiumPolicy", awesomiumAllowed ? "runtime-opt-in" : overlayPolicy );
 	CL_SetCvarIfChanged( "ui_browserAwesomiumParityScope", parityScope );
@@ -7171,7 +7209,7 @@ void QLWebHost_RegisterCommands( void ) {
 	cl_webBrowserActive = Cvar_Get ("web_browserActive", "0", CVAR_ROM );
 	cl_webHost.zoomPercent = CL_WebZoomIntegerValue();
 	cl_webHost.cvarMappingCount = QLWebHost_CountRecoveredWebCvarMappings();
-	Cvar_Set( "ui_browserAwesomiumPending", CL_AwesomiumRuntimeActive() ? "1" : "0" );
+	Cvar_Set( "ui_browserAwesomiumPending", CL_WebHost_AwesomiumPending( CL_AwesomiumRuntimeActive() ) ? "1" : "0" );
 }
 
 /*

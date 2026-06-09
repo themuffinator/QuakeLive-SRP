@@ -381,6 +381,7 @@ void SCR_DrawScreenField( stereoFrame_t stereoFrame ) {
 	qboolean browserOverlayRequested;
 	qboolean browserPendingSurface;
 	qboolean browserDrawableSurface;
+	qboolean browserSuppressUiRefresh;
 
 	re.BeginFrame( stereoFrame );
 
@@ -405,6 +406,7 @@ void SCR_DrawScreenField( stereoFrame_t stereoFrame ) {
 	browserOverlayRequested = qfalse;
 	browserDrawableSurface = qfalse;
 	browserPendingSurface = qfalse;
+	browserSuppressUiRefresh = qfalse;
 	if ( ( cls.keyCatchers & KEYCATCH_BROWSER )
 		|| Cvar_VariableIntegerValue( "web_browserActive" )
 		|| Cvar_VariableIntegerValue( "ui_browserAwesomiumPending" ) ) {
@@ -413,9 +415,10 @@ void SCR_DrawScreenField( stereoFrame_t stereoFrame ) {
 	if ( browserOverlayRequested ) {
 		browserDrawableSurface = CL_WebHost_HasDrawableSurface();
 		browserPendingSurface = browserDrawableSurface ? qfalse : qtrue;
+		browserSuppressUiRefresh = browserDrawableSurface || ( cls.keyCatchers & KEYCATCH_BROWSER );
 	}
 
-	if ( browserOverlayRequested && cls.state == CA_DISCONNECTED ) {
+	if ( browserSuppressUiRefresh && cls.state == CA_DISCONNECTED ) {
 		uiFullscreen = qtrue;
 	} else if ( uiFullscreen && browserPendingSurface ) {
 		uiFullscreen = qfalse;
@@ -474,7 +477,7 @@ void SCR_DrawScreenField( stereoFrame_t stereoFrame ) {
 	}
 
 	// the menu draws next
-	if ( cls.keyCatchers & KEYCATCH_UI && uivm && !browserOverlayRequested ) {
+	if ( cls.keyCatchers & KEYCATCH_UI && uivm && !browserSuppressUiRefresh ) {
 		VM_Call( uivm, UI_REFRESH, cls.realtime );
 	}
 

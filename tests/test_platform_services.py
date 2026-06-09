@@ -1190,11 +1190,13 @@ def test_disabled_online_services_no_longer_force_console_fallback() -> None:
 
     draw_block = _extract_function_block(cl_scrn, "void SCR_DrawScreenField( stereoFrame_t stereoFrame ) {")
     assert "uiFullscreen = VM_Call( uivm, UI_IS_FULLSCREEN ) ? qtrue : qfalse;" in draw_block
-    assert "if ( browserOverlayRequested && cls.state == CA_DISCONNECTED ) {" in draw_block
+    assert "if ( browserSuppressUiRefresh && cls.state == CA_DISCONNECTED ) {" in draw_block
+    assert "if ( browserOverlayRequested && cls.state == CA_DISCONNECTED ) {" not in draw_block
     assert "if ( browserDrawableSurface ) {" in draw_block
     assert "uiFullscreen = qtrue;" in draw_block
-    assert "&& !browserOverlayRequested" in draw_block
-    assert "if ( cls.keyCatchers & KEYCATCH_UI && uivm && !browserOverlayRequested ) {" in draw_block
+    assert "qboolean browserSuppressUiRefresh;" in draw_block
+    assert "browserSuppressUiRefresh = browserDrawableSurface || ( cls.keyCatchers & KEYCATCH_BROWSER );" in draw_block
+    assert "if ( cls.keyCatchers & KEYCATCH_UI && uivm && !browserSuppressUiRefresh ) {" in draw_block
     assert 'VM_Call( uivm, UI_SET_ACTIVE_MENU, UIMENU_MAIN );' in draw_block
     assert "consoleFallback" not in draw_block
 
@@ -2756,8 +2758,9 @@ def test_client_browser_host_core_reconstructs_retained_runtime_owner() -> None:
     assert "qboolean awesomiumAllowed = CL_AwesomiumRuntimeActive();" in bridge_block
     assert "qboolean overlayAvailable = browserRequested && CL_OverlayServiceAvailable();" in bridge_block
     assert "qboolean browserAvailable = overlayAvailable || awesomiumAllowed;" in bridge_block
+    assert "qboolean awesomiumPending = CL_WebHost_AwesomiumPending( awesomiumAllowed );" in bridge_block
     assert 'CL_SetCvarIfChanged( "ui_browserAwesomium", browserAvailable ? "1" : "0" );' in bridge_block
-    assert 'CL_SetCvarIfChanged( "ui_browserAwesomiumPending", ( awesomiumAllowed && !cl_webHost.loadFailed ) ? "1" : "0" );' in bridge_block
+    assert 'CL_SetCvarIfChanged( "ui_browserAwesomiumPending", awesomiumPending ? "1" : "0" );' in bridge_block
     assert 'CL_SetCvarIfChanged( "ui_browserAwesomiumProvider", awesomiumAllowed ? "Awesomium WebCore" : overlayProvider );' in bridge_block
     assert 'CL_SetCvarIfChanged( "ui_browserAwesomiumPolicy", awesomiumAllowed ? "runtime-opt-in" : overlayPolicy );' in bridge_block
     assert "CL_WebHost_ResetRuntime( qtrue );" in bridge_block

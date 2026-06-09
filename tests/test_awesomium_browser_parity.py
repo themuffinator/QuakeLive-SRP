@@ -216,7 +216,10 @@ def test_awesomium_load_failure_hides_host_and_suppresses_error_publish_until_re
 	assert "cls.keyCatchers |= KEYCATCH_BROWSER;" in ownership_block
 	assert 'CL_SetCvarIfChanged( "web_browserActive", ownsOverlay ? "1" : "0" );' in ownership_block
 	assert "VM_Call( cgvm, CG_EVENT_HANDLING, CGAME_EVENT_CLOSECOMMANDOVERLAY );" in hide_browser_block
-	assert "if ( !QLWebView_SetLocationHash( hash ) ) {" in navigate_block
+	assert "CL_WebHost_NormalizeHash( hash, normalizedHash, sizeof( normalizedHash ) );" in navigate_block
+	assert "CL_WebHost_BuildCurrentURL( normalizedHash, expectedUrl, sizeof( expectedUrl ) );" in navigate_block
+	assert "if ( cl_webHost.viewInitialised && !Q_stricmp( cl_webHost.currentUrl, expectedUrl ) ) {" in navigate_block
+	assert "if ( !QLWebView_SetLocationHash( normalizedHash ) ) {" in navigate_block
 	assert "CL_Awesomium_OpenURL( cl_webHost.currentUrl )" not in navigate_block
 
 	assert 'Cvar_Set( "web_browserActive", cl_webHost.browserActive ? "1" : "0" );' not in show_browser_block
@@ -247,6 +250,27 @@ def test_awesomium_menu_runtime_is_torn_down_before_match_loading() -> None:
 	assert "CL_WebHost_Shutdown();" in map_loading_block
 	assert "return cls.state == CA_DISCONNECTED || cls.state == CA_CINEMATIC;" in bootstrap_allowed_block
 	assert "|| !CL_WebHost_ShouldBootstrapMenu()" in bootstrap_block
+
+
+def test_awesomium_pending_state_requires_requested_browser_without_drawable_surface() -> None:
+	cl_cgame = _read_text(CL_CGAME_PATH)
+
+	pending_block = _extract_function_block(
+		cl_cgame, "static qboolean CL_WebHost_AwesomiumPending( qboolean awesomiumAllowed ) {"
+	)
+	bridge_block = _extract_function_block(cl_cgame, "void CL_RefreshOnlineServicesBridgeState( void ) {")
+	register_block = _extract_function_block(cl_cgame, "void QLWebHost_RegisterCommands( void ) {")
+
+	assert "if ( !awesomiumAllowed || cl_webHost.loadFailed ) {" in pending_block
+	assert "!cl_webBrowserVisible" in pending_block
+	assert "!cl_webHost.browserVisible" in pending_block
+	assert "!cl_webHost.browserActive" in pending_block
+	assert "!cl_webHost.loadingDocument" in pending_block
+	assert "return CL_WebHost_SurfaceReadyForOverlay( qtrue ) ? qfalse : qtrue;" in pending_block
+	assert "qboolean awesomiumPending = CL_WebHost_AwesomiumPending( awesomiumAllowed );" in bridge_block
+	assert 'CL_SetCvarIfChanged( "ui_browserAwesomiumPending", awesomiumPending ? "1" : "0" );' in bridge_block
+	assert 'Cvar_Set( "ui_browserAwesomiumPending", CL_WebHost_AwesomiumPending( CL_AwesomiumRuntimeActive() ) ? "1" : "0" );' in register_block
+	assert '( awesomiumAllowed && !cl_webHost.loadFailed ) ? "1" : "0"' not in cl_cgame
 
 
 def test_awesomium_direct_input_helpers_reconstruct_browser_runtime_injection_surface() -> None:
@@ -1027,6 +1051,12 @@ def test_awesomium_qz_method_table_preserves_retail_return_flags() -> None:
 	config_sync_block = _extract_function_block(
 		cl_cgame, "static void CL_WebHost_SyncConfigSnapshot( void ) {"
 	)
+	map_sync_block = _extract_function_block(
+		cl_cgame, "static void CL_WebHost_SyncMapCatalogSnapshot( void ) {"
+	)
+	factory_sync_block = _extract_function_block(
+		cl_cgame, "static void CL_WebHost_SyncFactoryCatalogSnapshot( void ) {"
+	)
 	execute_config_block = _extract_function_block(
 		cl_cgame, "static qboolean CL_WebHost_ExecuteConfigSnapshot( const char *configJson ) {"
 	)
@@ -1117,6 +1147,12 @@ def test_awesomium_qz_method_table_preserves_retail_return_flags() -> None:
 	assert "CL_WebHost_ExecuteConfigSnapshot( configJson )" in config_sync_block
 	assert "Com_sprintf(" not in config_sync_block
 	assert "Com_sprintf(" not in execute_config_block
+	assert "if ( cl_webHost.mapCatalogSynced ) {" in map_sync_block
+	assert "cl_webHost.nextMapCatalogSyncFrame = 0;" in map_sync_block
+	assert "cl_webHost.mapCatalogSynced && cl_webHost.frameSequence" not in map_sync_block
+	assert "if ( cl_webHost.factoryCatalogSynced ) {" in factory_sync_block
+	assert "cl_webHost.nextFactoryCatalogSyncFrame = 0;" in factory_sync_block
+	assert "cl_webHost.factoryCatalogSynced && cl_webHost.frameSequence" not in factory_sync_block
 
 	for expected in (
 		"#define CL_WEB_NATIVE_REQUESTS_PER_FRAME 1",
@@ -1559,6 +1595,7 @@ def test_awesomium_runtime_bootstrap_and_surface_pump_reconstruct_retail_host_co
 	assert "!cl_webHost.liveAwesomium || !cl_webHost.viewInitialised || !cl_webHost.browserVisible" in live_failure_block
 	assert "cl_webHost.surfaceHasUiContent" in live_failure_block
 	assert "cl_webHost.liveSurfaceMissingFrames < CL_WEB_LIVE_SURFACE_FAILURE_FRAMES" in live_failure_block
+	assert "cl_webHost.liveSurfaceMissingFrames++;" in live_failure_block
 	assert 'Com_Printf( "Awesomium WebCore surface failed after %d frames' in live_failure_block
 	assert "CL_WebHost_ResetRuntime( qtrue );" in live_failure_block
 	assert "cl_webHost.loadFailed = qtrue;" in live_failure_block
