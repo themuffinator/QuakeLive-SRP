@@ -139,14 +139,17 @@ Observed retail-only tutorial node behavior now pinned by tests:
 - `BotTeam` preserves the `CS_PLAYERS + bs->client` configstring fetch and
   `PLAYER_INFO_KEY_TEAM` parse into red, blue, or free team values.
 
+Update 2026-06-12: the narrow `AINode_InstaGib` cleanup boundary is now
+source-backed. The intermission and death exits clear the retail tutorial
+entity bit, now source-named as `FL_BOT_TRAINING_GODMODE`, plus `PW_FLIGHT`,
+`PW_REDFLAG`, and `ltgtype` through `BotInstaGibExitCleanup`, matching the
+HLIL writes at `0x100134B0..0x100134E6` and `0x10013522..0x10013558`.
+
 Open source gap: the remaining teammate, lead, torment, and fragbait tutorial
 node bodies after `AINode_Battle_NBG` are not yet compiled source in
 `src/code/game/ai_dmnet.c`. Reconstructing them accurately requires a dedicated
 retail `bot_state_t` tail-layout pass because the HLIL uses fields around
-`0x241c..0x2500` that do not currently have stable source members. The
-instagib node still carries one narrow unresolved boundary too: the raw retail
-player-state cleanup writes on intermission/death exits are documented but not
-guessed in source.
+`0x241c..0x2500` that do not currently have stable source members.
 
 ## Botlib And Training Wiring
 

@@ -12,6 +12,7 @@ BOTLIB_BE_AAS_H = REPO_ROOT / "src" / "code" / "game" / "be_aas.h"
 BOTLIB_AAS_ENTITY = REPO_ROOT / "src" / "code" / "botlib" / "be_aas_entity.c"
 BOTLIB_INTERFACE = REPO_ROOT / "src" / "code" / "botlib" / "be_interface.c"
 GAME_AI_MAIN = REPO_ROOT / "src" / "code" / "game" / "ai_main.c"
+GAME_LOCAL = REPO_ROOT / "src" / "code" / "game" / "g_local.h"
 GAME_PUBLIC = REPO_ROOT / "src" / "code" / "game" / "g_public.h"
 GAME_SYSCALLS = REPO_ROOT / "src" / "code" / "game" / "g_syscalls.c"
 SERVER_GAME = REPO_ROOT / "src" / "code" / "server" / "sv_game.c"
@@ -128,6 +129,7 @@ def test_botlib_entity_update_source_bridge_matches_retail_wiring() -> None:
 	botlib_h = _read(BOTLIB_H)
 	be_aas_h = _read(BOTLIB_BE_AAS_H)
 	ai_main = _read(GAME_AI_MAIN)
+	game_local = _read(GAME_LOCAL)
 	aas_entity = _read(BOTLIB_AAS_ENTITY)
 	be_interface = _read(BOTLIB_INTERFACE)
 	game_public = _read(GAME_PUBLIC)
@@ -151,14 +153,18 @@ def test_botlib_entity_update_source_bridge_matches_retail_wiring() -> None:
 	):
 		assert expected in be_aas_h
 
+	assert "#define FL_BOTLIB_ENTITY_STATE_BIT18\t\t0x00040000" in game_local
+
 	start_frame = _extract_function_block(ai_main, "int BotAIStartFrame(int time)")
 	assert start_frame.count("trap_BotLibUpdateEntity(i, NULL);") == 6
 	assert "if (ent->s.eType == ET_MISSILE && ent->s.weapon != WP_GRAPPLING_HOOK)" in start_frame
 	assert "if (ent->s.eType > ET_EVENTS)" in start_frame
 	assert "if (ent->touch == ProximityMine_Trigger)" in start_frame
-	assert "state.qlFlagsBit18Clear = ( ent->flags & RETAIL_BOTLIB_GENTITY_FLAG_BIT18 ) ? 0 : 1;" in start_frame
+	assert "state.qlFlagsBit18Clear = ( ent->flags & FL_BOTLIB_ENTITY_STATE_BIT18 ) ? 0 : 1;" in start_frame
 	assert "state.qlRedBlueFlagCarrier = ( ent->client->ps.powerups[PW_REDFLAG]" in start_frame
 	assert "powerupTime >= level.time || powerupTime == INT_MAX" in start_frame
+	assert "powerupTime != 0" not in start_frame
+	assert "powerup < MAX_POWERUPS" not in start_frame
 	_assert_ordered(
 		start_frame,
 		(
@@ -167,7 +173,7 @@ def test_botlib_entity_update_source_bridge_matches_retail_wiring() -> None:
 			"for (i = 0; i < MAX_GENTITIES; i++)",
 			"memset(&state, 0, sizeof(bot_entitystate_t));",
 			"state.qlTimeSeconds = (float)( ent->s.time / 1000 );",
-			"state.qlFlagsBit18Clear = ( ent->flags & RETAIL_BOTLIB_GENTITY_FLAG_BIT18 ) ? 0 : 1;",
+			"state.qlFlagsBit18Clear = ( ent->flags & FL_BOTLIB_ENTITY_STATE_BIT18 ) ? 0 : 1;",
 			"if (ent->client) {",
 			"state.qlPlayerGravity = ent->client->ps.gravity;",
 			"state.qlPlayerSpeed = ent->client->ps.speed;",
@@ -175,7 +181,7 @@ def test_botlib_entity_update_source_bridge_matches_retail_wiring() -> None:
 			"state.qlEntityHealth = ent->health;",
 			"state.qlClientMaxHealth = ent->client->ps.stats[STAT_MAX_HEALTH];",
 			"state.qlRedBlueFlagCarrier = ( ent->client->ps.powerups[PW_REDFLAG]",
-			"for ( powerup = 0; powerup < BOTLIB_QL_POWERUP_ACTIVE_COUNT && powerup < MAX_POWERUPS; powerup++ )",
+			"for ( powerup = 0; powerup < BOTLIB_QL_POWERUP_ACTIVE_COUNT; powerup++ )",
 			"state.qlPowerupsActive[powerup] =",
 			"trap_BotLibUpdateEntity(i, &state);",
 			"BotAIRegularUpdate();",
@@ -288,7 +294,9 @@ def test_botlib_entity_update_retail_hlil_pins_ql_tail_and_bridge_sizes() -> Non
 		"iStack_60 = piVar4[0x52];",
 		"uStack_5c = *(undefined4 *)(iVar3 + 0xdc);",
 		"if ((*(int *)(iVar3 + 0x144) != 0) || (uStack_14 = 0, *(int *)(iVar3 + 0x148) != 0))",
+		"piVar2 = &DAT_1008ff18;",
 		"piVar5 = (int *)(iVar3 + 0x180);",
+		"if ((*piVar5 < *piVar2) && (*piVar5 != -1))",
 		"memset(auStack_58,0,0x40);",
 	):
 		assert expected in qagame_ghidra

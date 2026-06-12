@@ -65,6 +65,9 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #define FL_NO_BOTS				0x00002000	// spawn point not for bot use
 #define FL_NO_HUMANS			0x00004000	// spawn point just for bots
 #define FL_FORCE_GESTURE		0x00008000	// force gesture on client
+#define FL_BOT_TRAINING_GODMODE			0x00010000	// retail training sidecar paired with FL_GODMODE
+#define FL_BOT_TRAINING_NO_KNOCKBACK	0x00020000	// retail training sidecar paired with FL_NO_KNOCKBACK
+#define FL_BOTLIB_ENTITY_STATE_BIT18		0x00040000	// exported inverted as botlib qlFlagsBit18Clear
 
 // movers are things like doors, plats, buttons, etc
 typedef enum {

@@ -395,7 +395,7 @@ def test_win32_mouse_capture_falls_back_to_absolute_client_coordinates_for_ui_la
 	assert "qboolean\tcursorCaptured;" in win_input
 	assert "SM_CXVIRTUALSCREEN" in rect_block
 	assert "SM_CYVIRTUALSCREEN" in rect_block
-	assert "GetWindowRect( g_wv.hWnd, window_rect );" in rect_block
+	assert "if ( !GetWindowRect( g_wv.hWnd, window_rect ) ) {" in rect_block
 	assert "KEYCATCH_UI | KEYCATCH_CGAME | KEYCATCH_BROWSER" in cursor_request_block
 	assert "in_nograb && in_nograb->integer" in cursor_request_block
 	assert "IN_GetClampedWindowRect( &window_rect )" in cursor_activate_block
@@ -451,6 +451,10 @@ def test_win32_mouse_capture_falls_back_to_absolute_client_coordinates_for_ui_la
 
 def test_win32_window_class_registration_survives_restart_recreate_races() -> None:
 	win_glimp = WIN_GLIMP.read_text(encoding="utf-8")
+	pfd_probe_block = _extract_function_block(
+		win_glimp,
+		"static qboolean GLW_PFDCanCreateContext( int pixelformat, const PIXELFORMATDESCRIPTOR *pFD, qboolean useQWGL )",
+	)
 	register_block = _extract_function_block(win_glimp, "static void GLW_RegisterWindowClass( void ) {")
 	unregister_block = _extract_function_block(win_glimp, "static void GLW_UnregisterWindowClass( void ) {")
 	create_block = _extract_function_block(
@@ -459,6 +463,11 @@ def test_win32_window_class_registration_survives_restart_recreate_races() -> No
 	)
 	shutdown_block = _extract_function_block(win_glimp, "void GLimp_Shutdown( void )")
 
+	assert "previousHWnd = g_wv.hWnd;" in pfd_probe_block
+	assert "if ( g_wv.hWnd == hWnd )" in pfd_probe_block
+	assert "g_wv.hWnd = previousHWnd;" in pfd_probe_block
+	assert pfd_probe_block.index("previousHWnd = g_wv.hWnd;") < pfd_probe_block.index("CreateWindowExW( 0,")
+	assert pfd_probe_block.index("CreateWindowExW( 0,") < pfd_probe_block.index("g_wv.hWnd = previousHWnd;")
 	assert "RegisterClassW( &wc )" in register_block
 	assert "ERROR_CLASS_ALREADY_EXISTS" in register_block
 	assert "ri.Error( ERR_FATAL, \"GLW_CreateWindow: could not register window class\" );" in register_block
@@ -1229,6 +1238,17 @@ def test_win32_fallback_mouse_messages_include_xbutton_state_bits() -> None:
 	assert "temp |= 8;" in main_wndproc
 	assert "wParam & MK_XBUTTON2" in main_wndproc
 	assert "temp |= 16;" in main_wndproc
+
+
+def test_win32_mainwndproc_destroy_leaves_game_hwnd_lifetime_to_renderer() -> None:
+	win_wndproc = WIN_WNDPROC.read_text(encoding="utf-8")
+	main_wndproc = _extract_function_block(win_wndproc, "LONG WINAPI MainWndProc (")
+	destroy_case = main_wndproc[
+		main_wndproc.index("case WM_DESTROY:") : main_wndproc.index("case WM_CLOSE:")
+	]
+
+	assert "g_wv.hWnd = NULL;" not in destroy_case
+	assert "WIN_EnableAltTab();" in destroy_case
 
 
 def test_win32_input_restart_command_matches_retail_registration_and_handler() -> None:

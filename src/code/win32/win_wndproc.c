@@ -579,8 +579,7 @@ LONG WINAPI MainWndProc (
 		break;
 #endif
 	case WM_DESTROY:
-		// let sound and input know about this?
-		g_wv.hWnd = NULL;
+		// Renderer shutdown owns the global game window handle lifetime.
 		if ( r_fullscreen->integer )
 		{
 			WIN_EnableAltTab();

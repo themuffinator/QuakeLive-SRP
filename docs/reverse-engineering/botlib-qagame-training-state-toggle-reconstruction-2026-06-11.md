@@ -38,11 +38,11 @@ Binary Ninja HLIL for `0x100245C0` indexes the trainer entity through
   `gentity_t.flags &= 0xFFFDF7FF` on disable.
 
 The named portions of the entity masks are `FL_GODMODE` and
-`FL_NO_KNOCKBACK`. The remaining `0x00010000` and `0x00020000` entity flag bits
-are preserved as local retail training masks because this pass did not find a
-stable broader gameplay name for them. The extra weapon bit `0x00008000` is
-also kept as a local retail training constant rather than being assigned to a
-public weapon enum.
+`FL_NO_KNOCKBACK`. Follow-up source reconstruction on 2026-06-12 named the
+paired retail training sidecars as `FL_BOT_TRAINING_GODMODE` and
+`FL_BOT_TRAINING_NO_KNOCKBACK`. The extra weapon bit `0x00008000` remains a
+local retail training constant rather than being assigned to a public weapon
+enum.
 
 ## Source Reconstruction
 
@@ -51,6 +51,8 @@ public weapon enum.
 - `BOT_TRAINING_ENTITY_GODMODE_FLAGS`;
 - `BOT_TRAINING_ENTITY_NO_KNOCKBACK_FLAGS`;
 - `BOT_TRAINING_EXTRA_WEAPON_BIT`;
+- `FL_BOT_TRAINING_GODMODE` and
+  `FL_BOT_TRAINING_NO_KNOCKBACK` in `g_local.h`;
 - `BotSetTrainingBotState(bot_state_t *bs, qboolean enabled)`;
 - enable-path writes for entity flags, rocket-launcher ammo, weapon bits, and
   the retail extra weapon bit;

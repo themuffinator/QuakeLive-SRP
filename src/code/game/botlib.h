@@ -174,7 +174,7 @@ typedef struct bot_entitystate_s
 	int		qlEntityHealth;	// retail word 0x20: gentity_t.health when client data exists
 	int		qlClientMaxHealth;	// retail word 0x21: playerState_t.stats[STAT_MAX_HEALTH] when client data exists
 	int		qlPowerupsActive[BOTLIB_QL_POWERUP_ACTIVE_COUNT];	// retail words 0x22-0x31
-	int		qlFlagsBit18Clear;	// retail word 0x32: !(gentity_t.flags & 0x00040000)
+	int		qlFlagsBit18Clear;	// retail word 0x32: !(gentity_t.flags & FL_BOTLIB_ENTITY_STATE_BIT18)
 	int		qlRedBlueFlagCarrier;	// retail word 0x33: red/blue carried-flag sidecar present
 } bot_entitystate_t;
 

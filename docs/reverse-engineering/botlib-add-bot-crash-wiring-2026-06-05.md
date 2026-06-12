@@ -22,8 +22,12 @@ This pass targeted the add-bot crash observed in qagame shutdown when
 
 ## Reconstruction
 
-- `bot_goal_t` now carries an unmapped two-word Quake Live tail, bringing
+- `bot_goal_t` now carries a two-word Quake Live tail, bringing
   `sizeof(bot_goal_t)` to `0x40` and `sizeof(bot_activategoal_t)` to `0xfc`.
+  Follow-up 2026-06-12: the item-goal producer is now known to clear these
+  words before returning a level-item goal, while goal-stack copies preserve
+  the full `0x40`-byte record. A later same-day follow-up recovered that word
+  `0x0e` gates the `BotItemGoalInVisButNotVisible` trace path.
 - `BotAISetupClient` now clears freshly allocated bot state before reading
   `inuse`, clears reusable non-inuse state before setup, and scrubs/free-cleans
   partial setup state on failure.
@@ -33,7 +37,10 @@ This pass targeted the add-bot crash observed in qagame shutdown when
 
 The wider `bot_state_t` layout is still not source-exact. This pass fixes the
 crash-relevant activate-goal record size and setup invariant; later mapping
-should continue reconciling the full `0x2698` retail bot-state shape.
+should continue reconciling the full `0x2698` retail bot-state shape. The two
+`bot_goal_t` tail words are no longer wholly opaque for item goals and item
+visibility checks, but word `0x0f` and the broader gameplay semantics remain
+unnamed.
 
 ## Parity Estimate
 

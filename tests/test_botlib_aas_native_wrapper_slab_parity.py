@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+import json
 from pathlib import Path
 
 
@@ -32,6 +33,18 @@ QL_STEAM_HLIL_PART07 = (
 	/ "quakelive_steam.exe_hlil_split"
 	/ "quakelive_steam.exe_hlil_part07.txt"
 )
+QL_STEAM_HLIL_PART03 = (
+	REPO_ROOT
+	/ "references"
+	/ "hlil"
+	/ "quakelive"
+	/ "quakelive_steam.exe"
+	/ "quakelive_steam.exe_hlil_split"
+	/ "quakelive_steam.exe_hlil_part03.txt"
+)
+SYMBOL_ALIASES = REPO_ROOT / "references" / "analysis" / "quakelive_symbol_aliases.json"
+BOTLIB_PUBLIC = REPO_ROOT / "src" / "code" / "game" / "botlib.h"
+BOTLIB_INTERFACE = REPO_ROOT / "src" / "code" / "botlib" / "be_interface.c"
 GAME_PUBLIC = REPO_ROOT / "src" / "code" / "game" / "g_public.h"
 GAME_SYSCALLS = REPO_ROOT / "src" / "code" / "game" / "g_syscalls.c"
 SERVER_SV_GAME = REPO_ROOT / "src" / "code" / "server" / "sv_game.c"
@@ -62,9 +75,39 @@ EXPECTED_AAS_NATIVE_SLOTS = (
 	(82, "G_QL_IMPORT_BOTLIB_AAS_PREDICT_CLIENT_MOVEMENT", "BOTLIB_AAS_PREDICT_CLIENT_MOVEMENT", "QL_G_trap_AAS_PredictClientMovement", "4E1980", 73, "0056d0c8", "0x54"),
 )
 
+EXPECTED_AAS_EXPORT_SLOTS = (
+	("AAS_EntityInfo", "4851B0", "004a7fc0", "*arg1", 128),
+	("AAS_Initialized", "486200", "004a7fc6", "arg1[1]", None),
+	("AAS_PresenceTypeBoundingBox", "495270", "004a7fcd", "arg1[2]", 214),
+	("AAS_Time", "486400", "004a7fd4", "arg1[3]", 7),
+	("AAS_PointAreaNum", "4954B0", "004a7fdb", "arg1[4]", 136),
+	("AAS_PointReachabilityAreaIndex", "495540", "004a7fe2", "arg1[5]", 296),
+	("AAS_TraceAreas", "495F40", "004a7fe9", "arg1[6]", 940),
+	("AAS_BBoxAreas", "4967E0", "004a7ff0", "arg1[7]", 72),
+	("AAS_AreaInfo", "496830", "004a7ff7", "arg1[8]", 229),
+	("AAS_PointContents", "4829F0", "004a7ffe", "arg1[9]", 10),
+	("AAS_NextBSPEntity", "482AB0", "004a8005", "arg1[0xa]", 24),
+	("AAS_ValueForBSPEpairKey", "482AD0", "004a800c", "arg1[0xb]", 159),
+	("AAS_VectorForBSPEpairKey", "482B70", "004a8013", "arg1[0xc]", 188),
+	("AAS_FloatForBSPEpairKey", "482C30", "004a801a", "arg1[0xd]", 112),
+	("AAS_IntForBSPEpairKey", "482CA0", "004a8021", "arg1[0xe]", 114),
+	("AAS_AreaReachability", "488B50", "004a8028", "arg1[0xf]", 57),
+	("AAS_AreaTravelTimeToGoalArea", "494830", "004a802f", "arg1[0x10]", 49),
+	("AAS_EnableRoutingArea", "492990", "004a8036", "arg1[0x11]", 133),
+	("AAS_PredictRoute", "494870", "004a803d", "arg1[0x12]", 830),
+	("AAS_AlternativeRouteGoals", "494DB0", "004a8044", "arg1[0x13]", 1036),
+	("AAS_Swimming", "486CF0", "004a804b", "arg1[0x14]", 78),
+	("AAS_PredictClientMovement", "488190", "004a8052", "arg1[0x15]", 81),
+)
+
 
 def _read(path: Path) -> str:
 	return path.read_text(encoding="utf-8")
+
+
+def _aliases() -> dict[str, str]:
+	aliases = json.loads(_read(SYMBOL_ALIASES))
+	return aliases["quakelive_steam_srp"]
 
 
 def _function_rows() -> dict[str, str]:
@@ -93,6 +136,50 @@ def _extract_function_block(source: str, signature: str) -> str:
 				return source[start : offset + 1]
 
 	raise AssertionError(f"unterminated function block: {signature}")
+
+
+def test_aas_public_export_initializer_matches_retail_table_order() -> None:
+	rows = _function_rows()
+	aliases = _aliases()
+	botlib_public = _read(BOTLIB_PUBLIC)
+	interface_source = _read(BOTLIB_INTERFACE)
+	hlil = _read(QL_STEAM_HLIL_PART03)
+
+	aas_export = _extract_function_block(botlib_public, "typedef struct aas_export_s")
+	init_aas = _extract_function_block(interface_source, "static void Init_AAS_Export( aas_export_t *aas )")
+	init_hlil_start = hlil.index("004a7fc0    void __convention(\"regparm\") sub_4a7fc0")
+	init_hlil_end = hlil.index("004a8060    void __convention(\"regparm\") sub_4a8060", init_hlil_start)
+	init_hlil = hlil[init_hlil_start:init_hlil_end]
+
+	assert aliases["sub_4A7FC0"] == "Init_AAS_Export"
+	assert rows["4A7FC0"] == "FUN_004a7fc0,004a7fc0,154,0,unknown"
+	assert len(EXPECTED_AAS_EXPORT_SLOTS) == 0x16
+	assert "004a840e  sub_4a7fc0(&data_16dd860)" in hlil
+
+	previous_field_pos = -1
+	previous_source_pos = -1
+	previous_hlil_pos = -1
+	for field_name, address, hlil_address, hlil_slot, ghidra_size in EXPECTED_AAS_EXPORT_SLOTS:
+		field_anchor = f"(*{field_name})"
+		field_pos = aas_export.index(field_anchor)
+		assert previous_field_pos < field_pos
+		previous_field_pos = field_pos
+
+		source_anchor = f"aas->{field_name} = {field_name};"
+		source_pos = init_aas.index(source_anchor)
+		assert previous_source_pos < source_pos
+		previous_source_pos = source_pos
+
+		hlil_anchor = f"{hlil_address}  {hlil_slot} = sub_{address.lower()}"
+		hlil_pos = init_hlil.index(hlil_anchor)
+		assert previous_hlil_pos < hlil_pos
+		previous_hlil_pos = hlil_pos
+
+		assert aliases[f"sub_{address}"] == field_name
+		if ghidra_size is None:
+			assert address not in rows
+		else:
+			assert rows[address] == f"FUN_00{address.lower()},00{address.lower()},{ghidra_size},0,unknown"
 
 
 def test_aas_native_wrapper_slab_rows_and_hlil_table_are_pinned() -> None:

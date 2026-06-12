@@ -57,9 +57,8 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 #define MAX_PATH		144
 #define RETAIL_SELECTED_BOT_INFO_CONFIGSTRING	0x10
-#define RETAIL_BOTLIB_GENTITY_FLAG_BIT18	0x00040000
-#define BOT_TRAINING_ENTITY_GODMODE_FLAGS		(FL_GODMODE | 0x00010000)
-#define BOT_TRAINING_ENTITY_NO_KNOCKBACK_FLAGS	(FL_NO_KNOCKBACK | 0x00020000)
+#define BOT_TRAINING_ENTITY_GODMODE_FLAGS		(FL_GODMODE | FL_BOT_TRAINING_GODMODE)
+#define BOT_TRAINING_ENTITY_NO_KNOCKBACK_FLAGS	(FL_NO_KNOCKBACK | FL_BOT_TRAINING_NO_KNOCKBACK)
 #define BOT_TRAINING_EXTRA_WEAPON_BIT			0x00008000
 #define BOT_DYNAMIC_SKILL_UPDATE_SECONDS		5
 #define BOT_DYNAMIC_SKILL_STALL_SECONDS			30
@@ -2014,7 +2013,7 @@ int BotAIStartFrame(int time) {
 			state.torsoAnim = ent->s.torsoAnim;
 			state.weapon = ent->s.weapon;
 			state.qlTimeSeconds = (float)( ent->s.time / 1000 );
-			state.qlFlagsBit18Clear = ( ent->flags & RETAIL_BOTLIB_GENTITY_FLAG_BIT18 ) ? 0 : 1;
+			state.qlFlagsBit18Clear = ( ent->flags & FL_BOTLIB_ENTITY_STATE_BIT18 ) ? 0 : 1;
 			if (ent->client) {
 				state.qlPlayerGravity = ent->client->ps.gravity;
 				state.qlPlayerSpeed = ent->client->ps.speed;
@@ -2023,10 +2022,10 @@ int BotAIStartFrame(int time) {
 				state.qlClientMaxHealth = ent->client->ps.stats[STAT_MAX_HEALTH];
 				state.qlRedBlueFlagCarrier = ( ent->client->ps.powerups[PW_REDFLAG]
 					|| ent->client->ps.powerups[PW_BLUEFLAG] ) ? 1 : 0;
-				for ( powerup = 0; powerup < BOTLIB_QL_POWERUP_ACTIVE_COUNT && powerup < MAX_POWERUPS; powerup++ ) {
+				for ( powerup = 0; powerup < BOTLIB_QL_POWERUP_ACTIVE_COUNT; powerup++ ) {
 					powerupTime = ent->client->ps.powerups[powerup];
 					state.qlPowerupsActive[powerup] =
-						( powerupTime != 0 && ( powerupTime >= level.time || powerupTime == INT_MAX ) ) ? 1 : 0;
+						( powerupTime >= level.time || powerupTime == INT_MAX ) ? 1 : 0;
 				}
 			}
 			//

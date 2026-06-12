@@ -15,6 +15,10 @@
 
 static ql_platform_service_table ql_platformServices;
 static qboolean ql_platformServicesInitialised;
+#if QL_PLATFORM_HAS_STEAMWORKS
+static qboolean ql_platformSteamworksInitialised;
+static time_t ql_platformSteamworksNextAttemptTime;
+#endif
 
 /*
 =============
@@ -251,32 +255,47 @@ allowing failed launch-time attempts to recover once Steam becomes available.
 =============
 */
 static qboolean QL_PlatformSteamworks_InitCached( void ) {
-	static qboolean steamInitialised = qfalse;
-	static time_t nextAttemptTime = 0;
 	time_t now;
 
-	if ( steamInitialised ) {
+	if ( ql_platformSteamworksInitialised ) {
 		return qtrue;
 	}
 
 	now = time( NULL );
-	if ( nextAttemptTime && now != (time_t)-1 && now < nextAttemptTime ) {
+	if ( ql_platformSteamworksNextAttemptTime && now != (time_t)-1 && now < ql_platformSteamworksNextAttemptTime ) {
 		return qfalse;
 	}
 
-	steamInitialised = QL_Steamworks_Init();
-	if ( steamInitialised ) {
-		nextAttemptTime = 0;
+	ql_platformSteamworksInitialised = QL_Steamworks_Init();
+	if ( ql_platformSteamworksInitialised ) {
+		ql_platformSteamworksNextAttemptTime = 0;
 		return qtrue;
 	}
 
 	if ( now != (time_t)-1 ) {
-		nextAttemptTime = now + QL_STEAMWORKS_RETRY_SECONDS;
+		ql_platformSteamworksNextAttemptTime = now + QL_STEAMWORKS_RETRY_SECONDS;
 	}
 
 	return qfalse;
 }
 #endif
+
+/*
+=============
+QL_ResetPlatformServices
+
+Clears cached platform-service descriptors and Steamworks retry state.
+=============
+*/
+void QL_ResetPlatformServices( void ) {
+	memset( &ql_platformServices, 0, sizeof( ql_platformServices ) );
+	ql_platformServicesInitialised = qfalse;
+
+#if QL_PLATFORM_HAS_STEAMWORKS
+	ql_platformSteamworksInitialised = qfalse;
+	ql_platformSteamworksNextAttemptTime = 0;
+#endif
+}
 
 /*
 =============

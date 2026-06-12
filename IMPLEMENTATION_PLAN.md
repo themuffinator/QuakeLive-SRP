@@ -1,6 +1,6 @@
 # Implementation Plan
 
-Last updated: 2026-06-11
+Last updated: 2026-06-12
 
 This file now tracks only active repo-level work. Detailed closure narratives
 live in the dedicated subsystem audits under `docs/reverse-engineering/`.
@@ -46,6 +46,1088 @@ disabled, until a documented open replacement path exists.
   pick and close remaining `src/ui/menudef.h` ownerdraw IDs.
 
 ## Active work
+
+### Task A523: Reconstruct botlib item-goal visibility tail gate [COMPLETED]
+Priority: High
+Primary areas: `src/code/botlib/be_ai_goal.c`,
+`src/code/game/be_ai_goal.h`, `tests/test_botlib_goal_item_parity.py`,
+`tests/test_botlib_internal_parity.py`,
+`docs/reverse-engineering/botlib-goal-item-mapping-2026-06-06.md`,
+`docs/reverse-engineering/botlib-add-bot-crash-wiring-2026-06-05.md`,
+`docs/reverse-engineering/botlib-goal-tail-item-producer-reconstruction-2026-06-12.md`
+Parity estimate: **before 62% -> after 95%** for focused
+`BotItemGoalInVisButNotVisible` tail-gate confidence, **before 97% -> after
+98%** for focused `bot_goal_t` item-tail behavior confidence, and overall
+botlib plus qagame/server wiring reconstruction parity **84.29% -> 84.31%**.
+
+Completed work:
+
+1. Rechecked retail `BotItemGoalInVisButNotVisible` / `sub_49F560` against
+   Binary Ninja HLIL in the same goal-item evidence band as `BotGetLevelItemGoal`.
+2. Confirmed retail enters the trace path only when the item flag is set and
+   goal word `0x0e` is zero.
+3. Reconstructed that source gate with `goal->qlGoalExtra[0]` before the
+   `AAS_Trace` visibility check.
+4. Updated the `bot_goal_t` tail comment to capture the recovered split:
+   item-goal producers clear the tail and word `0x0e` gates item-visibility
+   rechecks.
+5. Strengthened the focused goal-item and broad internal botlib parity gates
+   while keeping the tail field conservatively named.
+
+### Task A521: Reconstruct botlib item-goal tail producer clearing [COMPLETED]
+Priority: High
+Primary areas: `src/code/botlib/be_ai_goal.c`,
+`src/code/game/be_ai_goal.h`, `tests/test_botlib_goal_item_parity.py`,
+`tests/test_botlib_internal_parity.py`,
+`docs/reverse-engineering/botlib-goal-item-mapping-2026-06-06.md`,
+`docs/reverse-engineering/botlib-add-bot-crash-wiring-2026-06-05.md`,
+`docs/reverse-engineering/botlib-goal-tail-item-producer-reconstruction-2026-06-12.md`
+Parity estimate: **before 70% -> after 94%** for focused
+`BotGetLevelItemGoal` tail-producer confidence, **before 96% -> after 97%**
+for focused `bot_goal_t` ABI/layout confidence, and overall botlib plus
+qagame/server wiring reconstruction parity **84.27% -> 84.29%**.
+
+Completed work:
+
+1. Rechecked retail `BotGetLevelItemGoal` / `sub_49DDF0` against Binary Ninja
+   HLIL and the existing goal-stack layout reconstruction.
+2. Confirmed retail writes the standard item-goal fields and explicitly clears
+   goal words `0x0e` and `0x0f` before returning the level-item number.
+3. Reconstructed the producer-side clear in `BotGetLevelItemGoal` by zeroing
+   `goal->qlGoalExtra[0]` and `goal->qlGoalExtra[1]`.
+4. Updated the `bot_goal_t` tail comment to record the recovered behavior:
+   item-goal producer clears the words and goal-stack copies preserve the full
+   `0x40`-byte record.
+5. Strengthened focused and broad botlib parity gates while keeping the
+   two-word tail generically named until a stronger semantic owner is recovered.
+
+### Task A517: Reconstruct qagame botlib active-powerup vector producer [COMPLETED]
+Priority: High
+Primary areas: `src/code/game/ai_main.c`,
+`tests/test_botlib_entity_update_bridge_parity.py`,
+`tests/test_botlib_internal_parity.py`,
+`docs/reverse-engineering/botlib-entity-state-layout-reconstruction-2026-06-05.md`,
+`docs/reverse-engineering/botlib-qagame-powerup-active-vector-reconstruction-2026-06-12.md`
+Parity estimate: **before 78% -> after 96%** for focused botlib
+active-powerup vector producer confidence, **before 96% -> after 98%** for
+focused botlib entity-state producer source-shape confidence, and overall
+botlib plus qagame/server wiring reconstruction parity **84.24% -> 84.27%**.
+
+Completed work:
+
+1. Rechecked the retail `BotAIStartFrame` active-powerup vector loop against
+   Binary Ninja HLIL and Ghidra `qagamex86` output.
+2. Reconstructed the 16-slot producer loop in source terms by iterating exactly
+   `BOTLIB_QL_POWERUP_ACTIVE_COUNT` entries.
+3. Removed the source-only `powerupTime != 0` predicate guard so the source
+   matches retail's timer-threshold-or-permanent predicate shape.
+4. Removed the redundant `MAX_POWERUPS` loop guard from the reconstructed
+   producer path because the retail ABI and current playerstate storage both
+   carry 16 powerup timer entries.
+5. Updated parity tests and reconstruction notes while keeping the
+   `DAT_1008ff18..DAT_10090218` table identity as an explicit open question.
+
+### Task A522: Reconstruct GetAllUGC AppID query ordering [COMPLETED]
+Priority: High
+Primary areas: `src/common/platform/platform_steamworks.c`,
+`src/code/client/cl_main.c`, `tests/test_platform_services.py`,
+`docs/reverse-engineering/quakelive_steam_mapping_round_637.md`
+Parity estimate: **before 88% -> after 99%** for focused GetAllUGC AppID/query
+ordering confidence, **before 96% -> after 99%** for focused Steam workshop
+query source-shape confidence, and overall Steam launch/runtime
+integration mapping confidence **93.76% -> 93.78%**.
+
+Completed work:
+
+1. Rechecked retail `SteamWorkshop_GetAllUGC` / `sub_460dc0` against Binary
+   Ninja HLIL, promoted aliases, Ghidra rows, and the SteamUtils/SteamUGC
+   imports.
+2. Moved `QL_Steamworks_GetAppID()` before `QL_Steamworks_GetUGCInterface()`
+   and vtable lookup in `QL_Steamworks_RequestAllUGCQuery`.
+3. Pinned the retail `SteamUtils` AppID -> `SteamUGC`
+   CreateQueryAllUGCRequest -> SendQueryUGCRequest -> call-result registration
+   order.
+4. Confirmed `CL_Steam_RequestAllUGC` remains the browser method owner for the
+   retained raw integer filter handoff.
+
+### Task A516: Reconstruct GameServer utility initialized guards [COMPLETED]
+Priority: High
+Primary areas: `src/common/platform/platform_steamworks.c`,
+`src/code/client/cl_main.c`, `src/code/server/sv_client.c`,
+`tests/test_platform_services.py`,
+`docs/reverse-engineering/quakelive_steam_mapping_round_636.md`
+Parity estimate: **before 80% -> after 99%** for focused GameServer utility
+wrapper guard confidence, **before 92% -> after 99%** for focused Steam
+GameServer public-IP and AppID wiring confidence, and overall Steam launch/runtime
+integration mapping confidence **93.74% -> 93.76%**.
+
+Completed work:
+
+1. Rechecked retail `SteamServer_GetPublicIP` / `sub_465e80` and
+   `SteamStats_Init` / `sub_467850` against Binary Ninja HLIL, promoted
+   aliases, Ghidra rows, and the Steam GameServer/GameServerUtils imports.
+2. Reconstructed explicit `state.gameServerInitialised` guards in
+   `QL_Steamworks_ServerGetAppID` and `QL_Steamworks_ServerGetPublicIP` before
+   their GameServer utility/interface lookups and slot dispatches.
+3. Pinned the retail slot mapping for GameServer public IP slot `0x90` and
+   GameServerUtils AppID slot `0x24`.
+4. Confirmed the existing source owners remain unchanged:
+   `SV_SteamStats_CreatePlayerSession` captures the AppID for retained stats
+   sessions, while `CL_WebView_PublishGameStart` and
+   `CL_Steam_BuildInviteConnectString` treat a zero public IP as an inert
+   fallback.
+
+### Task A515: Reconstruct GameServer SteamID publish initialized guard [COMPLETED]
+Priority: High
+Primary areas: `src/common/platform/platform_steamworks.c`,
+`src/code/server/sv_init.c`, `tests/test_platform_services.py`,
+`docs/reverse-engineering/quakelive_steam_mapping_round_635.md`
+Parity estimate: **before 83% -> after 99%** for focused GameServer SteamID
+publish wrapper guard confidence, **before 95% -> after 99%** for focused Steam
+GameServer identity publication confidence, and overall Steam launch/runtime
+integration mapping confidence **93.72% -> 93.74%**.
+
+Completed work:
+
+1. Rechecked retail `SteamServer_PublishSteamID` / `sub_465b00` against
+   Binary Ninja HLIL, promoted aliases, Ghidra rows, and the Steam GameServer
+   import.
+2. Reconstructed an explicit `state.gameServerInitialised` guard in
+   `QL_Steamworks_ServerGetSteamID` before GameServer interface lookup and
+   slot `0x28` dispatch.
+3. Pinned the retail publication sequence from SteamID slot dispatch through
+   configstring `0x2ca`, `sv_referencedSteamworks`, and configstring `0x2cb`.
+4. Confirmed the existing source publication owner remains unchanged:
+   `SV_SteamServerPublishIdentity` publishes identity before heartbeat
+   enablement and the full server published-state refresh.
+
+### Task A514: Reconstruct qagame bot entity flag names [COMPLETED]
+Priority: High
+Primary areas: `src/code/game/g_local.h`, `src/code/game/ai_main.c`,
+`src/code/game/ai_dmnet.c`, `src/code/game/botlib.h`,
+`src/code/game/be_aas.h`,
+`tests/test_botlib_qagame_ai_main_lifecycle_training_parity.py`,
+`tests/test_botlib_qagame_ai_dmnet_tutorial_tail_parity.py`,
+`tests/test_botlib_entity_update_bridge_parity.py`,
+`tests/test_botlib_internal_parity.py`,
+`docs/reverse-engineering/botlib-qagame-entity-flag-naming-reconstruction-2026-06-12.md`
+Parity estimate: **before 55% -> after 99%** for focused qagame bot
+entity-flag naming confidence, **before 90% -> after 99%** for focused botlib
+entity-state producer naming confidence, **before 93% -> after 98%** for
+focused training-helper flag-source confidence, and overall botlib plus
+qagame/server wiring reconstruction parity **84.21% -> 84.24%**.
+
+Completed work:
+
+1. Rechecked the retail `BotAIStartFrame` entity-state producer and
+   `BotSetTrainingBotState` flag groups against Binary Ninja HLIL, Ghidra rows,
+   and the existing source reconstruction.
+2. Promoted the training sidecar bits to `FL_BOT_TRAINING_GODMODE` and
+   `FL_BOT_TRAINING_NO_KNOCKBACK` in `g_local.h`.
+3. Promoted the botlib entity-state bit-18 producer mask to
+   `FL_BOTLIB_ENTITY_STATE_BIT18` and routed `BotAIStartFrame` through the
+   shared flag name instead of a private raw mask.
+4. Routed `BotInstaGibExitCleanup` through `FL_BOT_TRAINING_GODMODE` so the
+   tutorial cleanup path shares the same named retail bit as the training
+   helper.
+5. Updated botlib entity-state comments, parity tests, and reverse-engineering
+   notes so the former raw flag open questions are now closed with source
+   names.
+
+### Task A513: Reconstruct GameServer P2P accept initialized guard [COMPLETED]
+Priority: High
+Primary areas: `src/common/platform/platform_steamworks.c`,
+`tests/test_platform_services.py`,
+`docs/reverse-engineering/quakelive_steam_mapping_round_634.md`
+Parity estimate: **before 82% -> after 99%** for focused GameServer P2P
+accept wrapper guard confidence, **before 94% -> after 99%** for focused Steam
+GameServer P2P callback admission confidence, and overall Steam launch/runtime
+integration mapping confidence **93.70% -> 93.72%**.
+
+Completed work:
+
+1. Rechecked retail `SteamServerCallbacks_OnP2PSessionRequest` / `sub_465b70`
+   against Binary Ninja HLIL, promoted aliases, Ghidra rows, and the Steam
+   GameServer networking import.
+2. Reconstructed an explicit `state.gameServerInitialised` guard in
+   `QL_Steamworks_ServerAcceptP2PSession` before GameServer networking
+   interface lookup and slot `0x0c` dispatch.
+3. Pinned the retail active-client SteamID match before
+   `SteamGameServerNetworking` accept dispatch.
+4. Confirmed the existing source admission owner remains unchanged:
+   `SV_SteamServerP2PSessionRequestCallback` calls the accept wrapper only
+   after `SV_FindActiveClientBySteamId` succeeds and
+   `SV_SteamServerInitCallbacks` binds the callback owner.
+
+### Task A512: Reconstruct GameServerStats initialized guards [COMPLETED]
+Priority: High
+Primary areas: `src/common/platform/platform_steamworks.c`,
+`tests/test_platform_services.py`,
+`docs/reverse-engineering/quakelive_steam_mapping_round_633.md`
+Parity estimate: **before 81% -> after 99%** for focused GameServerStats
+wrapper guard confidence, **before 94% -> after 99%** for focused Steam
+GameServerStats request/flush wiring confidence, and overall Steam launch/runtime
+integration mapping confidence **93.68% -> 93.70%**.
+
+Completed work:
+
+1. Rechecked retail `SteamStats_OnServersConnected` / `sub_467190` and
+   `SteamStats_FlushPendingValues` / `sub_4670c0` against Binary Ninja HLIL,
+   promoted aliases, Ghidra rows, and Steam GameServerStats imports.
+2. Reconstructed explicit `state.gameServerInitialised` wrapper guards across
+   `QL_Steamworks_ServerIsLoggedOn` and the public GameServerStats request,
+   read, write, achievement, avg-rate, and store wrappers.
+3. Pinned the retail request sequence from `SteamGameServerStats()` through
+   GameServer BLoggedOn slot `0x20`, reacquired stats interface, and
+   `RequestUserStats` slot `0x00` dispatch.
+4. Confirmed the existing source stats-session owner remains unchanged:
+   `SV_SteamStats_RequestCurrentValues`, `SV_SteamStats_CreatePlayerSession`,
+   and `SV_SteamStats_FlushPendingValues` route through the mapped wrappers.
+
+### Task A511: Reconstruct qagame Instagib exit cleanup [COMPLETED]
+Priority: High
+Primary areas: `src/code/game/ai_dmnet.c`,
+`tests/test_botlib_qagame_ai_dmnet_tutorial_tail_parity.py`,
+`docs/reverse-engineering/botlib-qagame-instagib-exit-cleanup-reconstruction-2026-06-12.md`
+Parity estimate: **before 40% -> after 99%** for focused Instagib exit
+cleanup source confidence, **before 88% -> after 93%** for focused
+source-backed Instagib node reconstruction confidence, and overall botlib plus
+qagame/server wiring reconstruction parity **84.18% -> 84.21%**.
+
+Completed work:
+
+1. Rechecked retail `AINode_InstaGib` intermission/death exits against Binary
+   Ninja HLIL, Ghidra rows, and source structure offsets.
+2. Resolved the raw player-state cleanup offsets to
+   `powerups[PW_FLIGHT]` and `powerups[PW_REDFLAG]`.
+3. Added `BotInstaGibExitCleanup` and routed only the retail-observed
+   intermission and death exits through it.
+4. Strengthened the tutorial-tail parity gate to pin the source helper, the two
+   source call sites, and the retail cleanup-write anchors.
+
+### Task A510: Reconstruct GameServer bootstrap setter initialized guards [COMPLETED]
+Priority: High
+Primary areas: `src/common/platform/platform_steamworks.c`,
+`tests/test_platform_services.py`,
+`docs/reverse-engineering/quakelive_steam_mapping_round_632.md`
+Parity estimate: **before 80% -> after 99%** for focused GameServer bootstrap
+setter wrapper guard confidence, **before 93% -> after 99%** for focused Steam
+GameServer bootstrap wiring confidence, and overall Steam launch/runtime
+integration mapping confidence **93.66% -> 93.68%**.
+
+Completed work:
+
+1. Rechecked retail `SteamServer_Init` / `sub_466ed0` against Binary Ninja
+   HLIL, the promoted alias map, Ghidra function rows, and Steam GameServer
+   imports.
+2. Reconstructed explicit `state.gameServerInitialised` wrapper guards in
+   `QL_Steamworks_ServerSetDedicated`, `QL_Steamworks_ServerLogOn`,
+   `QL_Steamworks_ServerSetProduct`, and
+   `QL_Steamworks_ServerSetGameDir` before GameServer interface lookup and
+   vtable dispatch.
+3. Pinned the retail post-init sequence from `data_e30358 = eax_10` through
+   dedicated-state publication, account/anonymous logon, heartbeat disable,
+   product publication, and game-dir publication.
+4. Confirmed the existing source bootstrap owner remains unchanged:
+   `Com_InitSteamGameServer` calls the bootstrap setters only after
+   `QL_Steamworks_ServerInitWithVersion` succeeds.
+
+### Task A509: Reconstruct qagame Obelisk retreat branch [COMPLETED]
+Priority: High
+Primary areas: `src/code/game/ai_dmq3.c`,
+`src/code/game/ai_dmq3.h`,
+`tests/test_botlib_qagame_ai_dmq3_team_goal_parity.py`,
+`docs/reverse-engineering/botlib-qagame-obelisk-retreat-branch-reconstruction-2026-06-12.md`
+Parity estimate: **before 35% -> after 99%** for focused Obelisk
+retreat-branch reconstruction confidence, **before 96% -> after 98%** for
+focused qagame team-goal dispatcher parity, and overall botlib plus
+qagame/server wiring reconstruction parity **84.15% -> 84.18%**.
+
+Completed work:
+
+1. Rechecked retail `BotTeamGoals` and `BotObeliskSeekGoals` against Binary
+   Ninja HLIL, Ghidra function rows, and promoted symbol aliases.
+2. Reconstructed the `GT_OBELISK` retreat path by removing the source-only
+   helper branch; retail retreat mode falls through to the shared order-time
+   reset while the non-retreat path remains mapped to `BotObeliskSeekGoals`.
+3. Removed the source-only empty `BotObeliskRetreatGoals` declaration and
+   body, since no distinct retail body exists in the mapped qagame band.
+4. Strengthened the qagame AI team-goal parity gate to pin the
+   retreat-versus-seek source shape, the retail call anchor, and rejection of
+   the source-only retreat stub.
+
+### Task A508: Reconstruct GameServer published-state initialized guards [COMPLETED]
+Priority: High
+Primary areas: `src/common/platform/platform_steamworks.c`,
+`tests/test_platform_services.py`,
+`docs/reverse-engineering/quakelive_steam_mapping_round_631.md`
+Parity estimate: **before 82% -> after 99%** for focused GameServer
+published-state wrapper guard confidence, **before 92% -> after 99%** for
+focused Steam GameServer published-state wiring confidence, and overall Steam launch/runtime
+integration mapping confidence **93.64% -> 93.66%**.
+
+Completed work:
+
+1. Rechecked retail `SteamServer_UpdatePublishedState` / `sub_466260` against
+   Binary Ninja HLIL, the promoted alias map, Ghidra function rows, and the
+   Steam GameServer import.
+2. Reconstructed explicit `state.gameServerInitialised` wrapper guards in the
+   GameServer published-state wrapper family before GameServer interface lookup
+   and vtable dispatch.
+3. Pinned the retail published-state sequence from the `data_e30358 != 0` gate
+   through max players, password state, server/map names, rule key/values,
+   player user data, bot count, game description, and game tags.
+4. Confirmed the existing source published-state owner remains unchanged:
+   `SV_SteamServerUpdatePublishedState` gates on
+   `QL_Steamworks_ServerIsInitialised` before publication work.
+
+### Task A507: Pin bot client and debug draw wrapper wiring [COMPLETED]
+Priority: High
+Primary areas: `tests/test_botlib_server_game_bridge_parity.py`,
+`docs/reverse-engineering/botlib-bot-client-debug-draw-wrapper-recheck-2026-06-12.md`
+Parity estimate: **before 89% -> after 99%** for focused bot client
+allocation/free wrapper confidence, **before 90% -> after 99%** for focused
+qagame bot client/debug trap wrapper confidence, and overall botlib plus
+qagame/server wiring reconstruction parity **84.12% -> 84.15%**.
+
+Completed work:
+
+1. Rechecked retail `SV_BotAllocateClient`, `SV_BotFreeClient`, and
+   `BotDrawDebugPolygons` against Binary Ninja HLIL body shapes.
+2. Pinned qagame native wrappers for bot allocation/free, usercmd copy,
+   entity-token parsing, and debug polygon forwarding.
+3. Expanded source-side bridge checks across `sv_bot.c`, `sv_game.c`,
+   `ql_game_imports.inc`, and `g_syscalls.c`.
+4. Confirmed no source-code change was needed because the reconstructed wrapper
+   surface already matches retail evidence.
+
+### Task A506: Reconstruct GameServer P2P networking initialized guards [COMPLETED]
+Priority: High
+Primary areas: `src/common/platform/platform_steamworks.c`,
+`tests/test_platform_services.py`,
+`docs/reverse-engineering/quakelive_steam_mapping_round_630.md`
+Parity estimate: **before 83% -> after 99%** for focused GameServer P2P
+networking wrapper guard confidence, **before 92% -> after 99%** for focused
+Steam GameServer frame P2P relay confidence, and overall Steam launch/runtime
+integration mapping confidence **93.62% -> 93.64%**.
+
+Completed work:
+
+1. Rechecked retail `SteamServer_Frame` / `sub_466850` against Binary Ninja
+   HLIL, the promoted alias map, Ghidra function rows, and Steam GameServer
+   networking imports.
+2. Reconstructed explicit `state.gameServerInitialised` wrapper guards in
+   `QL_Steamworks_ServerSendP2PPacket`,
+   `QL_Steamworks_ServerIsP2PPacketAvailable`, and
+   `QL_Steamworks_ServerReadP2PPacket` before GameServer networking interface
+   lookup.
+3. Pinned the retail P2P frame sequence from the `data_e30358 != 0` gate
+   through keepalive sends, packet availability checks, packet reads, relay
+   sends, and the existing outgoing UDP drain.
+4. Confirmed the existing source frame owner remains unchanged:
+   `SV_SteamServerNetworkingFrame` gates on `QL_Steamworks_ServerIsInitialised`
+   before callback, publish, keepalive, relay, and outgoing-drain work.
+
+### Task A505: Pin botlib server runtime wrapper wiring [COMPLETED]
+Priority: High
+Primary areas: `tests/test_botlib_server_game_bridge_parity.py`,
+`docs/reverse-engineering/botlib-server-runtime-wrapper-wiring-recheck-2026-06-12.md`
+Parity estimate: **before 91% -> after 99%** for focused server botlib runtime
+helper confidence, **before 92% -> after 99%** for focused native qagame
+botlib runtime wrapper confidence, and overall botlib plus qagame/server wiring
+reconstruction parity **84.09% -> 84.12%**.
+
+Completed work:
+
+1. Rechecked retail `SV_BotLibSetup`, `SV_BotLibShutdown`,
+   `SV_BotGetConsoleMessage`, and `SV_BotGetSnapshotEntity` against Binary
+   Ninja HLIL body shapes.
+2. Pinned reliable-command drain semantics, snapshot entity ring resolution,
+   botlib export offset calls, and qagame native botlib trap wrappers.
+3. Expanded source-side bridge checks across `ql_game_imports.inc`,
+   `g_syscalls.c`, and `SV_GameSystemCallsImpl`.
+4. Confirmed no source-code change was needed because the reconstructed runtime
+   wrapper surface already matches retail evidence.
+
+### Task A504: Reconstruct GameServer outgoing-packet initialized guard [COMPLETED]
+Priority: High
+Primary areas: `src/common/platform/platform_steamworks.c`,
+`tests/test_platform_services.py`,
+`docs/reverse-engineering/quakelive_steam_mapping_round_629.md`
+Parity estimate: **before 84% -> after 99%** for focused GameServer
+outgoing-packet wrapper guard confidence, **before 92% -> after 99%** for
+focused Steam GameServer frame outgoing-packet drain confidence, and overall Steam launch/runtime
+integration mapping confidence **93.60% -> 93.62%**.
+
+Completed work:
+
+1. Rechecked retail `SteamServer_Frame` / `sub_466850` against Binary Ninja
+   HLIL, the promoted alias map, Ghidra function rows, and Steam GameServer
+   imports.
+2. Reconstructed the explicit `state.gameServerInitialised` wrapper guard in
+   `QL_Steamworks_ServerGetNextOutgoingPacket` before GameServer interface
+   lookup and vtable slot `0x98` dispatch.
+3. Pinned the retail outgoing-packet drain order from the `data_e30358 != 0`
+   frame gate through `SteamGameServer_RunCallbacks`, `sub_466260(0)`, and the
+   vtable `0x98` packet loop.
+4. Confirmed the existing source frame path remains unchanged:
+   `SV_SteamServerNetworkingFrame` gates on `QL_Steamworks_ServerIsInitialised`,
+   runs callbacks, updates published state, sends keepalive traffic, relays P2P
+   packets, and drains outgoing packets through `SV_SteamServerDrainOutgoingPackets`.
+
+### Task A503: Pin botlib import wrapper bodies [COMPLETED]
+Priority: High
+Primary areas: `tests/test_botlib_import_callback_surface_parity.py`,
+`docs/reverse-engineering/botlib-import-wrapper-body-recheck-2026-06-12.md`
+Parity estimate: **before 88% -> after 99%** for focused botlib import
+wrapper body confidence, **before 96% -> after 99%** for focused host import
+callback source-to-HLIL mapping confidence, and overall botlib plus
+qagame/server wiring reconstruction parity **84.06% -> 84.09%**.
+
+Completed work:
+
+1. Rechecked the retail server import wrapper bodies from `BotImport_Print`
+   through `BotClientCommand` against Binary Ninja HLIL.
+2. Pinned trace/entity trace copy-out semantics, simple pass-through wrappers,
+   BSP model bounds expansion, memory/hunk allocation behavior, and debug
+   polygon array writes.
+3. Documented that `BotImport_DebugPolygonShow` is a source helper whose body is
+   inlined into retail `BotImport_DebugLineShow`, not a standalone retail
+   function-table entry.
+4. Confirmed no source-code change was needed because the reconstructed wrappers
+   already match the retail body contracts.
+
+### Task A502: Reconstruct GameServer auth-session initialized guards [COMPLETED]
+Priority: High
+Primary areas: `src/common/platform/platform_steamworks.c`,
+`tests/test_platform_services.py`,
+`docs/reverse-engineering/quakelive_steam_mapping_round_628.md`
+Parity estimate: **before 86% -> after 99%** for focused GameServer
+auth-session wrapper guard confidence, **before 93% -> after 99%** for
+focused Steam GameServer auth-session wiring confidence, and overall Steam launch/runtime
+integration mapping confidence **93.58% -> 93.60%**.
+
+Completed work:
+
+1. Rechecked retail `SteamServer_BeginAuthSession` / `sub_465fd0` and
+   `SteamServer_EndAuthSession` / `sub_4661e0` against Binary Ninja HLIL, the
+   promoted alias map, Ghidra function rows, and Steam GameServer imports.
+2. Reconstructed explicit `state.gameServerInitialised` wrapper guards in
+   `QL_Steamworks_ServerBeginAuthSession` and
+   `QL_Steamworks_ServerEndAuthSession` before GameServer interface lookup and
+   auth API dispatch.
+3. Pinned the source bridge where SRP dynamically loads
+   `SteamAPI_ISteamUser_BeginAuthSession` and
+   `SteamAPI_ISteamUser_EndAuthSession` while retail evidence shows
+   GameServer vtable slots `0x74` and `0x78`.
+4. Confirmed the existing server call sites remain unchanged:
+   `SV_BeginPlatformAuthSession`, `SV_SteamServerValidateAuthTicketResponseCallback`,
+   and `SV_SteamServerEndOrphanedAuthSessions` still own begin/finalize/cleanup
+   auth-session wiring.
+
+### Task A501: Pin botlib server frame callsite wiring [COMPLETED]
+Priority: High
+Primary areas: `tests/test_botlib_server_game_bridge_parity.py`,
+`docs/reverse-engineering/botlib-server-frame-callsite-wiring-recheck-2026-06-12.md`
+Parity estimate: **before 90% -> after 99%** for focused server bot-frame
+callsite wiring confidence, **before 98% -> after 99%** for focused botlib
+server lifecycle wiring confidence, and overall botlib plus qagame/server
+wiring reconstruction parity **84.03% -> 84.06%**.
+
+Completed work:
+
+1. Rechecked retail `SV_BotFrame` / `sub_4DD670` callsites against Binary
+   Ninja HLIL in `SV_SpawnServer`, `SV_Frame`, and `SV_Init`.
+2. Pinned the spawn/restart settling sequence where retail calls the game
+   frame export, then `SV_BotFrame`, before baseline creation.
+3. Pinned the live server frame split where non-dedicated bot frames use
+   `svs.time + sv.timeResidual` and dedicated bot frames use `svs.time`.
+4. Confirmed no source-code change was needed because the reconstructed server
+   bot-frame scheduling already matches the retail callsite shape.
+
+### Task A500: Reconstruct GameServer incoming-packet initialized guard [COMPLETED]
+Priority: High
+Primary areas: `src/common/platform/platform_steamworks.c`,
+`tests/test_platform_services.py`,
+`docs/reverse-engineering/quakelive_steam_mapping_round_627.md`
+Parity estimate: **before 88% -> after 99%** for focused GameServer
+incoming-packet wrapper guard confidence, **before 94% -> after 99%** for
+focused Steam GameServer UDP handoff owner confidence, and overall Steam launch/runtime
+integration mapping confidence **93.56% -> 93.58%**.
+
+Completed work:
+
+1. Rechecked retail `SteamServer_HandleIncomingPacket` / `sub_465d50`
+   against Binary Ninja HLIL, the promoted alias map, Ghidra function rows, and
+   Steam GameServer imports.
+2. Reconstructed the explicit `state.gameServerInitialised` wrapper guard in
+   `QL_Steamworks_ServerHandleIncomingPacket` before the `SteamGameServer`
+   interface lookup and vtable slot `0x94` dispatch.
+3. Pinned the source ordering between packet validation, initialized-state
+   validation, interface lookup, vtable extraction, and packet dispatch.
+4. Confirmed the existing `SV_PacketEvent` to
+   `SV_SteamServerHandleIncomingPacket` host-socket handoff remains the source
+   owner for forwarding IPv4 UDP packets into the retained Steam GameServer
+   runtime lane.
+
+### Task A499: Pin botlib AI public export initializer [COMPLETED]
+Priority: High
+Primary areas: `tests/test_botlib_internal_parity.py`,
+`docs/reverse-engineering/botlib-ai-export-initializer-bridge-recheck-2026-06-12.md`
+Parity estimate: **before 90% -> after 99%** for focused AI public export
+initializer confidence, **before 98% -> after 99%** for focused botlib AI
+export-to-native bridge confidence, and overall botlib plus qagame/server
+wiring reconstruction parity **83.99% -> 84.03%**.
+
+Completed work:
+
+1. Rechecked retail `Init_AI_Export` / `sub_4A8110` against Binary Ninja HLIL,
+   confirming the seventy-seven callback stores from `arg1[0]` through
+   `arg1[0x4c]`.
+2. Cross-linked the retail table with reconstructed `ai_export_t` ABI field
+   order, `Init_AI_Export` source assignment order, promoted aliases, and
+   companion Ghidra rows where the corpus has them.
+3. Added a whole-table parity gate covering character, chat, goal, movement,
+   weapon, genetic-selection, and debug-draw AI export callbacks.
+4. Confirmed no source-code change was needed because the reconstructed AI
+   public export initializer already matches the retail table order.
+
+### Task A498: Pin botlib EA public export initializer [COMPLETED]
+Priority: High
+Primary areas: `tests/test_botlib_ea_parity.py`,
+`docs/reverse-engineering/botlib-ea-export-initializer-bridge-recheck-2026-06-12.md`
+Parity estimate: **before 92% -> after 99%** for focused EA public export
+initializer confidence, **before 98% -> after 99%** for focused botlib EA
+export-to-native bridge confidence, and overall botlib plus qagame/server
+wiring reconstruction parity **83.96% -> 83.99%**.
+
+Completed work:
+
+1. Rechecked retail `Init_EA_Export` / `sub_4A8060` against Binary Ninja HLIL,
+   confirming the twenty-five EA callback stores and the retail store-order
+   quirks around `EA_Crouch`, `EA_GetInput`, and the `EA_EndRegular` no-op.
+2. Cross-linked the retail table with reconstructed `ea_export_t` ABI field
+   order and `Init_EA_Export` source assignment order.
+3. Added a whole-table parity gate tying source declarations, source
+   initializer order, Binary Ninja table rows, promoted aliases, and Ghidra
+   function rows together.
+4. Confirmed no source-code change was needed because the reconstructed EA
+   public export initializer already matches the retail table order.
+
+### Task A497: Publish pre-filesystem Steam service cvars [COMPLETED]
+Priority: High
+Primary areas: `src/code/client/cl_main.c`,
+`tests/test_platform_services.py`,
+`docs/reverse-engineering/quakelive_steam_mapping_round_626.md`
+Parity estimate: **before 78% -> after 99%** for focused pre-filesystem
+Steam service-cvar wiring confidence, **before 93% -> after 99%** for focused
+source split startup-owner confidence, and overall Steam launch/runtime
+integration mapping confidence **93.54% -> 93.56%**.
+
+Completed work:
+
+1. Rechecked retail `SteamClient_Init`, `SteamClient_IsInitialized`, and the
+   SteamID-scoped `FS_Startup` homepath branch against Binary Ninja HLIL,
+   Ghidra rows, imports, and the alias map.
+2. Kept the SRP-only `Com_InitSteamClientForFilesystem` split owner free of
+   callback, command, lobby, resource, auth-ticket, and rich-presence side
+   effects while retaining its `dedicated`/`com_build` guards.
+3. Wired `SteamClient_InitForFilesystem` to publish
+   `CL_RefreshPlatformServiceCvars` after its explicit
+   `QL_RefreshPlatformServices` call and before latching
+   `SteamClient_SetInitializedState`, matching the cvar surface already
+   refreshed by the primary `SteamClient_Init` owner.
+4. Added a focused parity gate that documents this diagnostic-only side effect
+   as source bridge wiring, not a claim that retail had a separate
+   pre-filesystem cvar publication function.
+
+### Task A496: Pin botlib AAS public export initializer [COMPLETED]
+Priority: High
+Primary areas: `tests/test_botlib_aas_native_wrapper_slab_parity.py`,
+`docs/reverse-engineering/botlib-aas-export-initializer-bridge-recheck-2026-06-12.md`
+Parity estimate: **before 92% -> after 99%** for focused AAS public export
+initializer confidence, **before 98% -> after 99%** for focused botlib AAS
+export-to-native bridge confidence, and overall botlib plus qagame/server
+wiring reconstruction parity **83.93% -> 83.96%**.
+
+Completed work:
+
+1. Rechecked retail `Init_AAS_Export` / `sub_4A7FC0` against Binary Ninja HLIL,
+   confirming the twenty-two callback assignments from `arg1[0]` through
+   `arg1[0x15]`.
+2. Cross-linked the retail table with reconstructed `aas_export_t` field order
+   and `Init_AAS_Export` source assignments.
+3. Added a whole-table parity gate tying source declarations, source
+   initializer order, Binary Ninja table rows, promoted aliases, and available
+   Ghidra function rows together.
+4. Confirmed no source-code change was needed because the reconstructed AAS
+   public export initializer already matches the retail table order.
+
+### Task A495: Pin botlib import callback copy-slab ABI [COMPLETED]
+Priority: High
+Primary areas: `tests/test_botlib_import_callback_surface_parity.py`,
+`docs/reverse-engineering/botlib-import-callback-copy-slab-bridge-recheck-2026-06-12.md`
+Parity estimate: **before 94% -> after 99%** for focused botlib import
+callback ABI confidence, **before 98% -> after 99%** for focused
+server-to-botlib initialization wiring confidence, and overall botlib plus
+qagame/server wiring reconstruction parity **83.90% -> 83.93%**.
+
+Completed work:
+
+1. Rechecked retail `SV_BotInitBotLib` / `sub_4DD940` against Binary Ninja
+   HLIL, confirming the contiguous stack callback slab from `var_5c` through
+   `var_8`.
+2. Cross-linked the retail `sub_4A83C0(2, &var_5c)` call with
+   `GetBotLibAPI`'s `0x58` import copy, proving the host slab covers exactly
+   twenty-two 32-bit callback slots.
+3. Added a focused parity gate tying the retail stack locals, source
+   `botlib_import_t` field order, `SV_BotInitBotLib` assignment order, and
+   `GetBotLibAPI` import-copy behavior together.
+4. Confirmed no source-code change was needed because the reconstructed host
+   callback ABI and the shared debug-line/debug-polygon delete slot already
+   match retail evidence.
+
+### Task A494: Reset Steamworks platform-service cache on shutdown [COMPLETED]
+Priority: High
+Primary areas: `src/common/platform/platform_services.c`,
+`src/common/platform/platform_services.h`,
+`src/common/platform/platform_steamworks.c`,
+`tests/test_platform_services.py`,
+`tests/steamworks_harness.c`,
+`docs/reverse-engineering/quakelive_steam_mapping_round_625.md`
+Parity estimate: **before 86% -> after 99%** for focused Steamworks
+service-cache shutdown reset confidence, **before 92% -> after 99%** for
+focused dynamic Steam descriptor lifecycle confidence, and overall Steam launch/runtime
+integration mapping confidence **93.52% -> 93.54%**.
+
+Completed work:
+
+1. Rechecked retail `SteamClient_Init`, `SteamClient_IsInitialized`, and
+   `SteamAPI_Shutdown` against Binary Ninja HLIL, Ghidra function/import rows,
+   and the alias map.
+2. Converted SRP's cached Steamworks platform-service state from local statics
+   into resettable file-static state and added `QL_ResetPlatformServices` to
+   clear descriptors, cached Steamworks initialization, and retry throttling.
+3. Wired `QL_Steamworks_Shutdown` to reset the platform-service cache before
+   releasing Steamworks state, preventing stale initialized descriptors after
+   shutdown while preserving the retail-shaped client shutdown order.
+4. Added a harness-local `QL_ResetPlatformServices` stub for
+   `tests/steamworks_harness.c`, which compiles `platform_steamworks.c`
+   standalone rather than linking the engine `platform_services.c` unit.
+
+### Task A493: Reconstruct guarded Steam GameServer cvar side-effect wiring [COMPLETED]
+Priority: High
+Primary areas: `src/code/qcommon/common.c`,
+`tests/test_platform_services.py`,
+`docs/reverse-engineering/quakelive_steam_mapping_round_624.md`
+Parity estimate: **before 88% -> after 99%** for focused guarded GameServer
+cvar side-effect confidence, **before 94% -> after 99%** for focused live
+GameServer version/VAC/account wiring confidence, and overall Steam launch/runtime
+integration mapping confidence **93.50% -> 93.52%**.
+
+Completed work:
+
+1. Rechecked retail `SteamServer_Init` (`sub_466ed0` / `FUN_00466ed0`) around
+   the `net_ip`/`net_port`, `com_build`, `sv_vac`, `SteamGameServer_Init`, and
+   `sv_setSteamAccount` ordering in Binary Ninja HLIL and the Ghidra corpus.
+2. Moved SRP's `sv_vac` and `sv_steamServerVersion` registration behind the
+   `com_build` guard, while keeping the source-only version override documented
+   as a compatibility extension over the retail `data_5674d4` literal.
+3. Moved `sv_setSteamAccount` registration to the post-init logon path, so
+   build-script runs avoid Steam GameServer account/VAC/version cvar side
+   effects before the retail guard admits live startup.
+
+### Task A492: Reconstruct Steam GameServer com_build bootstrap guard [COMPLETED]
+Priority: High
+Primary areas: `src/code/qcommon/common.c`,
+`tests/test_platform_services.py`,
+`docs/reverse-engineering/quakelive_steam_mapping_round_623.md`
+Parity estimate: **before 76% -> after 98%** for focused GameServer
+`com_build` bootstrap guard confidence, **before 94% -> after 99%** for
+focused dedicated/live-service startup side-effect containment confidence, and
+overall Steam launch/runtime
+integration mapping confidence **93.48% -> 93.50%**.
+
+Completed work:
+
+1. Rechecked retail `SteamServer_Init` (`sub_466ed0` / `FUN_00466ed0`) against
+   Binary Ninja HLIL, Ghidra metadata/import/function rows, and the alias map.
+2. Reconstructed the retail `com_build` skip in `Com_InitSteamGameServer` with
+   `Cvar_VariableIntegerValue( "com_build" )`, before debug output and live
+   `QL_Steamworks_ServerInitWithVersion` side effects.
+3. Added a focused parity gate documenting why the guard uses a direct cvar
+   value lookup: startup calls the GameServer bootstrap before the global
+   `com_buildScript` pointer is assigned, and `NET_Restart` reuses the same
+   guarded bootstrap path.
+
+### Task A491: Pin cached Steamworks launch refresh boundary [COMPLETED]
+Priority: High
+Primary areas: `tests/test_platform_services.py`,
+`docs/reverse-engineering/quakelive_steam_mapping_round_622.md`
+Parity estimate: **before 90% -> after 98%** for focused cached Steamworks
+launch-refresh confidence, **before 95% -> after 99%** for focused platform
+service descriptor policy confidence, and overall Steam launch/runtime
+integration mapping confidence **93.46% -> 93.48%**.
+
+Completed work:
+
+1. Rechecked retail `SteamClient_Init`, `SteamClient_IsInitialized`, and the
+   common-startup Steam fatal guard against Binary Ninja HLIL, Ghidra metadata,
+   import rows, function rows, and the alias map.
+2. Pinned SRP's policy-aware Steamworks descriptor cache:
+   `QL_PlatformSteamworks_InitCached`, `QL_GetPlatformServices`,
+   `QL_RefreshPlatformServices`, `QL_Steamworks_Init`,
+   `Com_InitSteamClientForFilesystem`, and `SteamClient_Init`.
+3. Added a focused parity gate proving failed opt-in Steamworks launch
+   initialization remains cached until an explicit refresh recovers it, while
+   default builds keep Steamworks disabled under `QL_BUILD_ONLINE_SERVICES=0`.
+
+### Task A490: Pin SteamDataSource avatar response lifecycle [COMPLETED]
+Priority: High
+Primary areas: `tests/test_platform_services.py`,
+`docs/reverse-engineering/quakelive_steam_mapping_round_621.md`
+Parity estimate: **before 94% -> after 99%** for focused SteamDataSource
+avatar response lifecycle confidence, **before 94% -> after 99%** for focused
+AvatarImageLoaded pending-retry confidence, and overall Steam launch/runtime
+integration mapping confidence **93.44% -> 93.46%**.
+
+Completed work:
+
+1. Rechecked `SteamDataSource_OnRequest`,
+   `SteamDataSource_OnAvatarImageLoaded`, `SteamDataSource_Init`,
+   `SteamDataSource_Shutdown`, `SteamDataSource_Destroy`, and
+   `SteamClient_GetAvatarImageHandle` against Binary Ninja HLIL, Ghidra
+   imports/function rows, analysis symbols, and the alias map.
+2. Consolidated the source-visible avatar URL parse, pending marker,
+   callback-clear, SteamUtils RGBA load, datasource response ownership,
+   fallback ordering, and default-disabled Steamworks stub boundaries into a
+   single parity gate.
+3. Documented the retail large-avatar evidence (`SteamFriends` slot `0x90`)
+   separately from the compatibility wrapper's small/medium/large selectors so
+   the live-service reconstruction stays bounded and evidence labeled.
+
+### Task A489: Pin Steam server callback registration and dispatch lifecycle [COMPLETED]
+Priority: High
+Primary areas: `references/analysis/quakelive_symbol_aliases.json`,
+`tests/test_platform_services.py`,
+`docs/reverse-engineering/quakelive_steam_mapping_round_620.md`
+Parity estimate: **before 93% -> after 99%** for focused Steam server
+callback registration confidence, **before 94% -> after 99%** for focused
+GameServer callback dispatch/pump split confidence, and overall Steam
+launch/runtime integration mapping confidence **93.42% -> 93.44%**.
+
+Completed work:
+
+1. Rechecked `SteamServerCallbacks_Init`,
+   `SteamServerCallbacks_OnServersConnected`,
+   `SteamServerCallbacks_OnConnectFailure`,
+   `SteamServerCallbacks_OnServersDisconnected`,
+   `SteamServerCallbacks_OnValidateAuthTicketResponse`, and
+   `SteamServerCallbacks_OnP2PSessionRequest` against Binary Ninja HLIL,
+   Ghidra imports/function rows, vtable symbols, and the alias map.
+2. Promoted missing `FUN_00465c10`, `FUN_00465c30`, and `FUN_00466800`
+   aliases so Ghidra-style names and Binary Ninja `sub_*` spellings converge
+   on the same Steam server callback owners.
+3. Added a focused parity gate covering server callback raw ABI layouts,
+   callback ids `0x65`, `0x66`, `0x67`, `0x8f`, `0x4b2`, `0x708`, and
+   `0x709`, GameServer callback-pump separation, source-side server callback
+   owners, disabled-header stubs, harness coverage, and this round's mapping
+   note.
+
+### Task A488: Pin Steam UGC query call-result publication lifecycle [COMPLETED]
+Priority: High
+Primary areas: `tests/test_platform_services.py`,
+`docs/reverse-engineering/quakelive_steam_mapping_round_619.md`
+Parity estimate: **before 94% -> after 99%** for focused Steam `GetAllUGC`
+async request/call-result confidence, **before 94% -> after 99%** for focused
+UGC browser publication/release confidence, and overall Steam
+launch/runtime integration mapping confidence **93.40% -> 93.42%**.
+
+Completed work:
+
+1. Rechecked `SteamCallbacks_OnGetAllUGCQueryCompleted`,
+   `SteamCallbacks_RunUGCQueryCompleted`,
+   `SteamCallbacks_RunUGCQueryCompletedCallResult`,
+   `SteamWorkshop_GetAllUGC`, and `SteamCallbacks_Init` against Binary Ninja
+   HLIL, Ghidra function/import rows, analysis symbols, and the alias map.
+2. Pinned the retail `GetAllUGC` bridge from browser method slot `0x0055C170`
+   through raw integer filter forwarding, `ISteamUGC` create/send vtable
+   slots, `SteamAPI_RegisterCallResult`, completion dispatch, and
+   query-handle release.
+3. Added a focused parity gate covering `SteamUGCQueryCompleted_t` raw ABI
+   layout, callback id `0xd49`, call-result bind/unbind ownership,
+   success/failure browser publications, disabled-header stubs, existing
+   harness coverage, and this round's mapping note.
+
+### Task A487: Pin Steam workshop callback bootstrap and finalization [COMPLETED]
+Priority: High
+Primary areas: `tests/test_platform_services.py`,
+`docs/reverse-engineering/quakelive_steam_mapping_round_618.md`
+Parity estimate: **before 94% -> after 99%** for focused Steam workshop
+callback bootstrap confidence, **before 94% -> after 99%** for focused
+item-installed/download-result finalization confidence, and overall Steam
+launch/runtime integration mapping confidence **93.38% -> 93.40%**.
+
+Completed work:
+
+1. Rechecked `SteamWorkshopCallbacks_OnItemInstalled`,
+   `SteamWorkshopCallbacks_OnDownloadItemResult`,
+   `SteamWorkshopCallbacks_Init`, and `SteamWorkshop_Init` against Binary
+   Ninja HLIL, Ghidra function/import rows, analysis symbols, and the alias
+   map.
+2. Pinned the retail callback ids, raw payload layouts, app-id and active-item
+   filters, success/failure finalization rules, startup skip gates, and
+   callback registration order for the Workshop completion lane.
+3. Added a focused parity gate covering platform dispatch, register/unregister
+   lifecycle, source-side callback-vs-polling fallback policy, recovery and
+   shutdown ownership, disabled-header stubs, harness callback capture names,
+   and this round's mapping note.
+
+### Task A486: Pin Steam lobby callback publication lifecycle [COMPLETED]
+Priority: High
+Primary areas: `tests/test_platform_services.py`,
+`docs/reverse-engineering/quakelive_steam_mapping_round_617.md`
+Parity estimate: **before 93% -> after 99%** for focused Steam lobby callback
+publication confidence, **before 94% -> after 99%** for focused current-lobby
+retained-state policy classification, and overall Steam launch/runtime
+integration mapping confidence **93.36% -> 93.38%**.
+
+Completed work:
+
+1. Rechecked the eight retail Steam lobby callback handlers, callback ids,
+   payload sizes, imported callback vtables, and registration order against
+   Binary Ninja HLIL, Ghidra rows, imports, analysis symbols, and the alias
+   map.
+2. Pinned the retail browser publication names and payload ownership for lobby
+   create, enter, chat update, chat message, data update, game-created, kicked,
+   join-requested, leave-current, and error paths.
+3. Added a focused parity gate covering raw callback layout, dispatch field
+   translation, register/unregister ordering, source-side retained lobby state
+   policy, disabled-header stubs, and this round's mapping note.
+
+### Task A485: Pin Steam user-stats and friend-presence callback publications [COMPLETED]
+Priority: High
+Primary areas: `tests/test_platform_services.py`,
+`docs/reverse-engineering/quakelive_steam_mapping_round_616.md`
+Parity estimate: **before 94% -> after 99%** for focused Steam user-stats
+callback publication confidence, **before 95% -> after 99%** for focused
+friend-rich-presence publication classification, and overall Steam
+launch/runtime integration mapping confidence **93.34% -> 93.36%**.
+
+Completed work:
+
+1. Rechecked `SteamCallbacks_OnUserStatsReceived`,
+   `SteamCallbacks_OnFriendRichPresenceUpdate`, their callback ids, payload
+   sizes, and registration slots against Binary Ninja HLIL, Ghidra rows,
+   imports, callback vtable symbols, and the alias map.
+2. Pinned the retail `users.stats.%llu.received` payload owner across `ID`,
+   `NAME`, nested `STATS`, nested `ACHIEVEMENTS`, and the retained
+   `SteamUserStats` vtable reads.
+3. Pinned the retail `users.presence.%llu.change` payload as the thin
+   `{id,status,lanIp}` publication, with SRP's richer friend summary kept on
+   the separate persona and summary lanes.
+
+### Task A484: Pin Steam client frame callback and packet pump lifecycle [COMPLETED]
+Priority: High
+Primary areas: `tests/test_platform_services.py`,
+`docs/reverse-engineering/quakelive_steam_mapping_round_615.md`
+Parity estimate: **before 94% -> after 99%** for focused Steam client-frame
+runtime pump confidence, **before 95% -> after 99%** for focused retained-state
+callback/packet policy classification, and overall Steam launch/runtime
+integration mapping confidence **93.32% -> 93.34%**.
+
+Completed work:
+
+1. Rechecked `SteamClient_Frame`, `SteamVoice_SendCapturedPacket`,
+   `SteamVoice_ProcessIncomingPackets`, and `SteamAPI_RunCallbacks` import
+   evidence against Binary Ninja HLIL, Ghidra imports/functions, and the alias
+   map.
+2. Pinned callback pump ordering, outgoing voice send, channel-0
+   `game.stats.report` packet inflate/publication, incoming voice receive, and
+   source-only callback-bootstrap recovery tail placement.
+3. Added a focused parity gate documenting the retained initialized-state
+   guard, SRP's default-disabled online-service boundary, and the no-refresh
+   frame-loop policy.
+
+### Task A483: Pin Steam invite callback connect handoff lifecycle [COMPLETED]
+Priority: High
+Primary areas: `tests/test_platform_services.py`,
+`docs/reverse-engineering/quakelive_steam_mapping_round_614.md`
+Parity estimate: **before 94% -> after 99%** for focused Steam invite/server
+change connect-handoff confidence, **before 96% -> after 99%** for focused
+callback payload/registration classification, and overall Steam launch/runtime
+integration mapping confidence **93.30% -> 93.32%**.
+
+Completed work:
+
+1. Rechecked `SteamCallbacks_OnRichPresenceJoinRequested`,
+   `SteamCallbacks_OnGameServerChangeRequested`, and their callback-bundle
+   registrations against Binary Ninja HLIL, Ghidra imports/functions,
+   analysis symbols, and the alias map.
+2. Pinned callback ids `0x151` and `0x14c`, retail payload sizes `0x108` and
+   `0x80`, raw/public payload copy boundaries, password cvar handling, and
+   immediate `connect` command execution.
+3. Added a focused parity gate documenting the retail invite callback thunks,
+   SRP's source callback dispatch split, and the default-disabled online
+   service boundary.
+
+### Task A482: Pin Steam social overlay command/browser handoff lifecycle [COMPLETED]
+Priority: High
+Primary areas: `tests/test_platform_services.py`,
+`docs/reverse-engineering/quakelive_steam_mapping_round_613.md`
+Parity estimate: **before 94% -> after 99%** for focused social overlay
+command/browser handoff confidence, **before 95% -> after 99%** for focused
+overlay policy/vtable wrapper classification, and overall Steam launch/runtime
+integration mapping confidence **93.28% -> 93.30%**.
+
+Completed work:
+
+1. Rechecked `CL_Steam_OverlayCommand_f`, retained browser
+   `OpenSteamOverlayURL`, retained browser `ActivateGameOverlayToUser`, and
+   the SteamFriends overlay vtable slots against Binary Ninja HLIL, Ghidra
+   imports/functions, and the alias map.
+2. Pinned console command registration/dispatch, browser method routing, loose
+   local `sscanf("%llu")` identity parse, and provider/initialization gates.
+3. Added a focused parity gate documenting the direct retail command handler
+   shape, SRP's default-disabled online-service boundary, and the two
+   SteamFriends overlay wrapper slots.
+
+### Task A481: Pin Steam GameServer restart and shutdown lifecycle [COMPLETED]
+Priority: High
+Primary areas: `tests/test_platform_services.py`,
+`docs/reverse-engineering/quakelive_steam_mapping_round_612.md`
+Parity estimate: **before 94% -> after 99%** for focused GameServer
+restart/shutdown lifecycle confidence, **before 95% -> after 99%** for
+focused server-frame callback pump and teardown ordering confidence, and overall
+Steam launch/runtime integration mapping confidence **93.26% -> 93.28%**.
+
+Completed work:
+
+1. Rechecked retail `SteamServer_Shutdown`, `SteamServer_EnableHeartbeats`,
+   `SteamServer_Frame`, `NET_Restart`, `SV_Shutdown`, and `Com_Frame` against
+   Binary Ninja HLIL, Ghidra function rows, imports, and the alias map.
+2. Pinned the source lifecycle across `QL_Steamworks_ServerShutdown`,
+   `QL_Steamworks_Shutdown`, `NET_Restart`, `SV_Shutdown`, `Com_Shutdown`,
+   `Com_Quit_f`, and `SV_SteamServerNetworkingFrame`.
+3. Added a focused parity gate documenting the narrow direct GameServer
+   shutdown helper, full platform callback teardown ownership, restart
+   shutdown/config/init ordering, heartbeat disable before server adapter
+   release, and common-frame placement for the GameServer callback pump.
+
+### Task A480: Pin Steam identity bootstrap persona/country lifecycle [COMPLETED]
+Priority: High
+Primary areas: `tests/test_platform_services.py`,
+`docs/reverse-engineering/quakelive_steam_mapping_round_611.md`
+Parity estimate: **before 95% -> after 99%** for focused persona/country
+identity-bootstrap evidence confidence, **before 96% -> after 99%** for
+focused retained-state identity policy classification, and overall Steam
+launch/runtime integration mapping confidence **93.24% -> 93.26%**.
+
+Completed work:
+
+1. Rechecked retail `SteamClient_SyncPersonaNameCvar`,
+   `SteamUtils_GetIPCountry`, and the adjacent persona-state callback refresh
+   against Binary Ninja HLIL, Ghidra function rows, imports, and the alias map.
+2. Pinned the source identity lifecycle: web-host command registration before
+   persona sync, persona sync before country seeding, country preservation when
+   already set, local persona-change refresh, and retained-initialized-state
+   gating before Steam identity reads.
+3. Added a focused parity gate documenting that SRP keeps persona/country
+   bootstrap as a retained Steam state consumer, not a hidden live-service init
+   owner, while preserving retail fallbacks such as `name = anon`.
+
+### Task A479: Pin Steam auth-ticket replacement and cleanup lifecycle [COMPLETED]
+Priority: High
+Primary areas: `tests/test_platform_services.py`,
+`docs/reverse-engineering/quakelive_steam_mapping_round_610.md`
+Parity estimate: **before 92% -> after 99%** for focused auth-ticket
+replacement/cleanup lifecycle confidence, **before 94% -> after 99%** for
+focused Steam shutdown/error ticket-owner classification, and overall Steam
+launch/runtime integration mapping confidence **93.22% -> 93.24%**.
+
+Completed work:
+
+1. Rechecked retail `SteamClient_GetAuthSessionTicket`,
+   `SteamClient_CancelAuthTicket`, and `SteamAPI_Shutdown` against Binary Ninja
+   HLIL, Ghidra function rows, imports, and the alias map.
+2. Pinned the retained ticket-handle lifecycle across request replacement,
+   Steam init re-entry, raw challenge decode failure, explicit client-auth
+   cancel, client callback shutdown, common error handling, and quit-time Steam
+   shutdown.
+3. Added a focused parity gate documenting that SRP cancels only replaced
+   retained handles, always clears the retained handle after a cancel attempt,
+   preserves callback pumps around Steam ticket fetches, and tears down tickets
+   before platform-service release.
+
+### Task A478: Pin Steam callback bootstrap recovery boundary [COMPLETED]
+Priority: High
+Primary areas: `tests/test_platform_services.py`,
+`docs/reverse-engineering/quakelive_steam_mapping_round_609.md`
+Parity estimate: **before 90% -> after 98%** for focused callback bootstrap
+recovery/unwind confidence, **before 94% -> after 99%** for focused client
+callback registration policy classification, and overall Steam launch/runtime
+integration mapping confidence **93.20% -> 93.22%**.
+
+Completed work:
+
+1. Rechecked retail `SteamCallbacks_Init`, `SteamClient_Init`,
+   `SteamLobbyCallbacks_Init`, `SteamLobby_Init`, and
+   `SteamMicroCallbacks_Init` against Binary Ninja HLIL, Ghidra function rows,
+   imports, callback vtable symbols, and the alias map.
+2. Pinned the retail callback bootstrap sequence: client callback bundle
+   allocation, callback ids, microtransaction callback creation, lobby callback
+   creation, voice command registration, app-id-gated `stats_clear`, main-menu
+   rich presence, and terminal success logging.
+3. Added a focused parity gate documenting SRP's dynamic-adapter recovery
+   policy: retry throttling, no frame-loop service relatch, partial
+   registration unwind, successful recovery rich-presence reseed, and shutdown
+   callback/ticket/browser-state cleanup.
+
+### Task A477: Pin Steam browser request-mode matrix [COMPLETED]
+Priority: High
+Primary areas: `tests/test_platform_services.py`,
+`docs/reverse-engineering/quakelive_steam_mapping_round_608.md`
+Parity estimate: **before 94% -> after 99%** for focused Steam browser
+request-mode matrix confidence, **before 95% -> after 98%** for focused native
+SteamMatchmakingServers fallback classification, and overall Steam
+launch/runtime integration mapping confidence **93.18% -> 93.20%**.
+
+Completed work:
+
+1. Rechecked retail `sub_462e60`, `sub_462e80`, `sub_462eb0`,
+   `sub_463090`, and `sub_4630b0` against Binary Ninja HLIL, Ghidra
+   function rows, imports, and the alias map.
+2. Pinned the retained `JSBrowser_RequestServers` matrix: internet/default
+   slot `0x00`, LAN slot `0x04`, friends slot `0x08`, favorites slot `0x0c`,
+   history slot `0x10`, release slot `0x18`, refresh slot `0x24`, and the
+   `gamedir=baseq3` filtered-list contract.
+3. Added a focused parity gate documenting the native-first
+   `ISteamMatchmakingServers` source reconstruction and the explicit
+   source-browser compatibility fallback for friends/history modes.
+
+### Task A476: Pin ResponseThread PNG SendResponse boundary [COMPLETED]
+Priority: High
+Primary areas: `tests/test_platform_services.py`,
+`docs/reverse-engineering/quakelive_steam_mapping_round_607.md`,
+`docs/reverse-engineering/source-file-gap-notes/rw-g01-client-steam-resources.md`
+Parity estimate: **before 91% -> after 99%** for focused ResponseThread
+PNG/SendResponse boundary confidence, **before 93% -> after 98%** for focused
+SteamDataSource async-response divergence classification, and overall Steam
+launch/runtime integration mapping confidence **93.16% -> 93.18%**.
+
+Completed work:
+
+1. Rechecked retail `sub_463110` / `FUN_00463110`, `sub_463180` /
+   `FUN_00463180`, `sub_463440` / `FUN_00463440`, and `sub_463550` /
+   `FUN_00463550` against Binary Ninja HLIL and Ghidra, confirming PNG buffer
+   writes, PNG encoding, `Awesomium::DataSource::SendResponse`, and
+   `request_%i` thread-start ownership.
+2. Pinned the source-visible `cl_steamResponseThreadRetailMappings[]` contract,
+   including `image/png`, `1.2.24`, `"Write Error"`, `0x00532B44`,
+   `0x0052C6B0`, and the `0x100000` stack-reserve anchor.
+3. Added a focused parity gate and mapping note documenting why the exact C++
+   `ResponseThread`/Awesomium delayed-response ABI remains bounded while the
+   avatar RGBA bridge stays behind online-service policy.
 
 ### Task A475: Pin cgame browser widget input consumer bridge [COMPLETED]
 Priority: High

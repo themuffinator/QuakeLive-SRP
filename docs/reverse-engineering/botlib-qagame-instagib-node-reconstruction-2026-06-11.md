@@ -57,10 +57,11 @@ source guards available in this tree: active `g_instaGib`, not already
 
 ## Inference Boundary
 
-The retail intermission/dead exits clear one entity flag bit and two raw
-player-state offsets before changing nodes. The current source tree has a
-broader training-state helper and a shifted `playerState_t` sidecar layout, so
-this pass does not guess those writes. They remain a focused tail-layout task.
+Closed 2026-06-12: the retail intermission/dead exits clear one entity flag bit
+and two player-state offsets before changing nodes, and the follow-up source
+pass mapped those writes to `BotInstaGibExitCleanup`. The cleanup clears the
+retail tutorial entity bit plus `PW_FLIGHT`, `PW_REDFLAG`, and `ltgtype` before
+entering the intermission or respawn node.
 
 The teammate, lead, torment, and fragbait tutorial nodes in the same
 `ai_dmnet.c` tail remain mapped-only for the same reason: they use additional
@@ -81,8 +82,10 @@ this environment, so native compile validation could not be run here.
 - Focused instagib node alias/source coverage:
   **before 0% -> after 100%** for the two guarded rows.
 - Focused instagib node source reconstruction confidence:
-  **before 0% -> after 88%**. The stable state, movement, target, and wiring
-  behavior is source-backed; the raw cleanup writes remain open.
+  **before 0% -> after 93%** after the 2026-06-12 cleanup follow-up. The
+  stable state, movement, target, exit cleanup, and wiring behavior is now
+  source-backed; the remaining uncertainty is the broader tutorial-tail scratch
+  layout, not this node's exit cleanup.
 - Focused qagame botlib movement/import wiring confidence:
   **before 98% -> after 99%**.
 - Overall botlib plus qagame AI execution wiring confidence:

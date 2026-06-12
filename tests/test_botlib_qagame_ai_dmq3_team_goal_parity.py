@@ -7,6 +7,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 GAME_AI_DMQ3 = REPO_ROOT / "src" / "code" / "game" / "ai_dmq3.c"
+GAME_AI_DMQ3_H = REPO_ROOT / "src" / "code" / "game" / "ai_dmq3.h"
 GAME_PUBLIC = REPO_ROOT / "src" / "code" / "game" / "g_public.h"
 GAME_SYSCALLS = REPO_ROOT / "src" / "code" / "game" / "g_syscalls.c"
 SERVER_GAME = REPO_ROOT / "src" / "code" / "server" / "sv_game.c"
@@ -244,7 +245,7 @@ SOURCE_HELPERS = {
 			"if ( retreat )",
 			"BotCTFRetreatGoals(bs);",
 			"Bot1FCTFRetreatGoals(bs);",
-			"BotObeliskRetreatGoals(bs);",
+			"BotObeliskSeekGoals(bs);",
 			"BotHarvesterRetreatGoals(bs);",
 			"BotCTFSeekGoals(bs);",
 			"Bot1FCTFSeekGoals(bs);",
@@ -346,6 +347,7 @@ def _function_rows_by_entry(path: Path) -> dict[str, dict[str, str]]:
 
 def test_qagame_ai_dmq3_team_goal_aliases_source_and_hlil_are_pinned() -> None:
 	source = _read(GAME_AI_DMQ3)
+	header = _read(GAME_AI_DMQ3_H)
 	hlil = _read(QAGAME_HLIL_PART01)
 	aliases = json.loads(_read(SYMBOL_ALIASES))["qagamex86"]
 	function_rows = _function_rows_by_entry(QAGAME_FUNCTIONS)
@@ -379,6 +381,13 @@ def test_qagame_ai_dmq3_team_goal_aliases_source_and_hlil_are_pinned() -> None:
 
 	for expected in HLIL_FLOW_ANCHORS:
 		assert expected in hlil
+
+	bot_team_goals = _extract_function_block(source, "void BotTeamGoals(bot_state_t *bs, int retreat)")
+	retreat_block, seek_block = bot_team_goals.split("\n\telse {\n", 1)
+	assert "GT_OBELISK" not in retreat_block
+	assert "BotObeliskSeekGoals(bs);" in seek_block
+	assert "BotObeliskRetreatGoals" not in source
+	assert "BotObeliskRetreatGoals" not in header
 
 
 def test_qagame_ai_dmq3_team_goal_botlib_import_wiring_is_pinned() -> None:

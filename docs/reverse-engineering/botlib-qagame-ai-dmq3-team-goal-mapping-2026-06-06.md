@@ -87,11 +87,11 @@ nodes in `ai_dmnet.c`, and botlib route/EA services. Confidence is high because
 source bodies, retail symbol-map signatures, Ghidra sizes, HLIL entry/call
 anchors, and import wiring all agree.
 
-Open question: the source-only `BotObeliskRetreatGoals` no-op remains present
-as the `BotTeamGoals` retreat branch target, but this pass did not promote a
-separate retail row for it because the mapped retail function table in this
-band has no distinct `BotObeliskRetreatGoals` body between
-`BotGoHarvest` and `BotHarvesterSeekGoals`.
+Closed 2026-06-12: the source-only `BotObeliskRetreatGoals` no-op was removed.
+The `BotTeamGoals` retreat dispatcher no longer has a `GT_OBELISK` helper
+branch, matching retail's fallthrough to the shared order-time reset. The
+non-retreat `GT_OBELISK` branch remains mapped to `BotObeliskSeekGoals`,
+matching the retail `sub_10015120` target pinned at `0x100159f7`.
 
 ## Botlib Wiring
 

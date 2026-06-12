@@ -1014,6 +1014,7 @@ qboolean SteamClient_InitForFilesystem( void ) {
 	}
 
 	services = QL_RefreshPlatformServices();
+	CL_RefreshPlatformServiceCvars();
 	SteamClient_SetInitializedState( services );
 	return SteamClient_IsInitialized();
 }

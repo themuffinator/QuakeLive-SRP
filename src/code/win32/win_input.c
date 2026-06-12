@@ -183,7 +183,9 @@ static qboolean IN_GetClampedWindowRect( RECT *window_rect ) {
 	width = GetSystemMetrics( SM_CXVIRTUALSCREEN );
 	height = GetSystemMetrics( SM_CYVIRTUALSCREEN );
 
-	GetWindowRect( g_wv.hWnd, window_rect );
+	if ( !GetWindowRect( g_wv.hWnd, window_rect ) ) {
+		return qfalse;
+	}
 	if ( window_rect->left < 0 ) {
 		window_rect->left = 0;
 	}

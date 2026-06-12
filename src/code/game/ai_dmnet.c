@@ -2624,6 +2624,21 @@ void AIEnter_InstaGib(bot_state_t *bs) {
 
 /*
 ==================
+BotInstaGibExitCleanup
+==================
+*/
+static void BotInstaGibExitCleanup(bot_state_t *bs) {
+	gentity_t *ent;
+
+	ent = &g_entities[bs->client];
+	ent->flags &= ~FL_BOT_TRAINING_GODMODE;
+	ent->client->ps.powerups[PW_FLIGHT] = 0;
+	ent->client->ps.powerups[PW_REDFLAG] = 0;
+	bs->ltgtype = 0;
+}
+
+/*
+==================
 AINode_InstaGib
 ==================
 */
@@ -2643,13 +2658,13 @@ int AINode_InstaGib(bot_state_t *bs) {
 	}
 	//if in the intermission
 	if (BotIntermission(bs)) {
-		bs->ltgtype = 0;
+		BotInstaGibExitCleanup(bs);
 		AIEnter_Intermission(bs, "insta gib!: intermission");
 		return qfalse;
 	}
 	//respawn if dead
 	if (BotIsDead(bs)) {
-		bs->ltgtype = 0;
+		BotInstaGibExitCleanup(bs);
 		AIEnter_Respawn(bs, "insta gib!: bot dead");
 		return qfalse;
 	}

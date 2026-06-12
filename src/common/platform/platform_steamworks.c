@@ -1108,6 +1108,8 @@ Shuts down Steamworks and releases any loaded handles.
 =============
 */
 void QL_Steamworks_Shutdown( void ) {
+	QL_ResetPlatformServices();
+
 	if ( !state.initialised && !state.gameServerInitialised ) {
 		return;
 	}
@@ -4742,6 +4744,10 @@ uint32_t QL_Steamworks_ServerGetAppID( void ) {
 	typedef uint32_t (__fastcall *QL_SteamGameServerUtils_GetAppIDFn)( void *self, void *unused );
 	QL_SteamGameServerUtils_GetAppIDFn fn;
 
+	if ( !state.gameServerInitialised ) {
+		return 0u;
+	}
+
 	gameServerUtils = QL_Steamworks_GetGameServerUtilsInterface();
 	vtable = QL_Steamworks_GetInterfaceVTable( gameServerUtils );
 	if ( !vtable ) {
@@ -4765,6 +4771,10 @@ qboolean QL_Steamworks_ServerIsLoggedOn( void ) {
 	void *gameServer;
 	void **vtable;
 	QL_SteamGameServer_BLoggedOnFn fn;
+
+	if ( !state.gameServerInitialised ) {
+		return qfalse;
+	}
 
 	gameServer = QL_Steamworks_GetGameServer();
 	if ( !gameServer ) {
@@ -4798,6 +4808,10 @@ qboolean QL_Steamworks_ServerRequestUserStats( const CSteamID *steamId ) {
 	uint32_t idHigh;
 
 	if ( !steamId || steamId->value == 0ull ) {
+		return qfalse;
+	}
+
+	if ( !state.gameServerInitialised ) {
 		return qfalse;
 	}
 
@@ -4851,6 +4865,10 @@ qboolean QL_Steamworks_ServerGetUserStatInt( const CSteamID *steamId, const char
 		return qfalse;
 	}
 
+	if ( !state.gameServerInitialised ) {
+		return qfalse;
+	}
+
 	gameServerStats = QL_Steamworks_GetGameServerStatsInterface();
 	if ( !gameServerStats ) {
 		return qfalse;
@@ -4889,6 +4907,10 @@ qboolean QL_Steamworks_ServerGetUserStatFloat( const CSteamID *steamId, const ch
 	}
 
 	if ( !steamId || steamId->value == 0ull || !name || !name[0] || !outValue ) {
+		return qfalse;
+	}
+
+	if ( !state.gameServerInitialised ) {
 		return qfalse;
 	}
 
@@ -4931,6 +4953,10 @@ qboolean QL_Steamworks_ServerGetUserAchievement( const CSteamID *steamId, const 
 	}
 
 	if ( !steamId || steamId->value == 0ull || !name || !name[0] || !outAchieved ) {
+		return qfalse;
+	}
+
+	if ( !state.gameServerInitialised ) {
 		return qfalse;
 	}
 
@@ -4977,6 +5003,10 @@ qboolean QL_Steamworks_ServerSetUserStatInt( const CSteamID *steamId, const char
 		return qfalse;
 	}
 
+	if ( !state.gameServerInitialised ) {
+		return qfalse;
+	}
+
 	gameServerStats = QL_Steamworks_GetGameServerStatsInterface();
 	if ( !gameServerStats ) {
 		return qfalse;
@@ -5011,6 +5041,10 @@ qboolean QL_Steamworks_ServerSetUserStatFloat( const CSteamID *steamId, const ch
 	uint32_t idHigh;
 
 	if ( !steamId || steamId->value == 0ull || !name || !name[0] ) {
+		return qfalse;
+	}
+
+	if ( !state.gameServerInitialised ) {
 		return qfalse;
 	}
 
@@ -5051,6 +5085,10 @@ qboolean QL_Steamworks_ServerUpdateAvgRateStat( const CSteamID *steamId, const c
 		return qfalse;
 	}
 
+	if ( !state.gameServerInitialised ) {
+		return qfalse;
+	}
+
 	gameServerStats = QL_Steamworks_GetGameServerStatsInterface();
 	if ( !gameServerStats ) {
 		return qfalse;
@@ -5088,6 +5126,10 @@ qboolean QL_Steamworks_ServerSetUserAchievement( const CSteamID *steamId, const 
 		return qfalse;
 	}
 
+	if ( !state.gameServerInitialised ) {
+		return qfalse;
+	}
+
 	gameServerStats = QL_Steamworks_GetGameServerStatsInterface();
 	if ( !gameServerStats ) {
 		return qfalse;
@@ -5122,6 +5164,10 @@ qboolean QL_Steamworks_ServerStoreUserStats( const CSteamID *steamId ) {
 	uint32_t idHigh;
 
 	if ( !steamId || steamId->value == 0ull ) {
+		return qfalse;
+	}
+
+	if ( !state.gameServerInitialised ) {
 		return qfalse;
 	}
 
@@ -5457,6 +5503,11 @@ qboolean QL_Steamworks_RequestAllUGCQuery( uint32_t filter ) {
 	uint64_t callHandle;
 	uint64_t queryHandle;
 
+	appId = QL_Steamworks_GetAppID();
+	if ( appId == 0u ) {
+		return qfalse;
+	}
+
 	ugc = QL_Steamworks_GetUGCInterface();
 	if ( !ugc ) {
 		return qfalse;
@@ -5470,11 +5521,6 @@ qboolean QL_Steamworks_RequestAllUGCQuery( uint32_t filter ) {
 	createQueryFn = (QL_SteamUGC_CreateQueryAllUGCRequestFn)vtable[0x04 / 4];
 	sendQueryFn = (QL_SteamUGC_SendQueryUGCRequestFn)vtable[0x0c / 4];
 	if ( !createQueryFn || !sendQueryFn ) {
-		return qfalse;
-	}
-
-	appId = QL_Steamworks_GetAppID();
-	if ( appId == 0u ) {
 		return qfalse;
 	}
 
@@ -6004,6 +6050,10 @@ qboolean QL_Steamworks_ServerSetDedicated( qboolean dedicated ) {
 	void **vtable;
 	QL_SteamGameServer_SetDedicatedFn fn;
 
+	if ( !state.gameServerInitialised ) {
+		return qfalse;
+	}
+
 	gameServer = QL_Steamworks_GetGameServer();
 	if ( !gameServer ) {
 		return qfalse;
@@ -6035,6 +6085,10 @@ qboolean QL_Steamworks_ServerLogOn( const char *account ) {
 	void **vtable;
 	QL_SteamGameServer_LogOnFn logOnFn;
 	QL_SteamGameServer_LogOnAnonymousFn anonymousFn;
+
+	if ( !state.gameServerInitialised ) {
+		return qfalse;
+	}
 
 	gameServer = QL_Steamworks_GetGameServer();
 	if ( !gameServer ) {
@@ -6081,6 +6135,10 @@ qboolean QL_Steamworks_ServerSetProduct( const char *product ) {
 		return qfalse;
 	}
 
+	if ( !state.gameServerInitialised ) {
+		return qfalse;
+	}
+
 	gameServer = QL_Steamworks_GetGameServer();
 	if ( !gameServer ) {
 		return qfalse;
@@ -6113,6 +6171,10 @@ qboolean QL_Steamworks_ServerSetGameDir( const char *gameDir ) {
 	QL_SteamGameServer_SetStringFn fn;
 
 	if ( !gameDir || !gameDir[0] ) {
+		return qfalse;
+	}
+
+	if ( !state.gameServerInitialised ) {
 		return qfalse;
 	}
 
@@ -6151,6 +6213,10 @@ qboolean QL_Steamworks_ServerSetGameDescription( const char *description ) {
 		return qfalse;
 	}
 
+	if ( !state.gameServerInitialised ) {
+		return qfalse;
+	}
+
 	gameServer = QL_Steamworks_GetGameServer();
 	if ( !gameServer ) {
 		return qfalse;
@@ -6183,6 +6249,10 @@ qboolean QL_Steamworks_ServerSetMaxPlayerCount( int maxPlayers ) {
 	QL_SteamGameServer_SetIntFn fn;
 
 	if ( maxPlayers < 0 ) {
+		return qfalse;
+	}
+
+	if ( !state.gameServerInitialised ) {
 		return qfalse;
 	}
 
@@ -6221,6 +6291,10 @@ qboolean QL_Steamworks_ServerSetBotPlayerCount( int botPlayers ) {
 		return qfalse;
 	}
 
+	if ( !state.gameServerInitialised ) {
+		return qfalse;
+	}
+
 	gameServer = QL_Steamworks_GetGameServer();
 	if ( !gameServer ) {
 		return qfalse;
@@ -6253,6 +6327,10 @@ qboolean QL_Steamworks_ServerSetServerName( const char *name ) {
 	QL_SteamGameServer_SetStringFn fn;
 
 	if ( !name || !name[0] ) {
+		return qfalse;
+	}
+
+	if ( !state.gameServerInitialised ) {
 		return qfalse;
 	}
 
@@ -6291,6 +6369,10 @@ qboolean QL_Steamworks_ServerSetMapName( const char *mapName ) {
 		return qfalse;
 	}
 
+	if ( !state.gameServerInitialised ) {
+		return qfalse;
+	}
+
 	gameServer = QL_Steamworks_GetGameServer();
 	if ( !gameServer ) {
 		return qfalse;
@@ -6321,6 +6403,10 @@ qboolean QL_Steamworks_ServerSetPasswordProtected( qboolean passwordProtected ) 
 	void *gameServer;
 	void **vtable;
 	QL_SteamGameServer_SetIntFn fn;
+
+	if ( !state.gameServerInitialised ) {
+		return qfalse;
+	}
 
 	gameServer = QL_Steamworks_GetGameServer();
 	if ( !gameServer ) {
@@ -6398,6 +6484,10 @@ qboolean QL_Steamworks_ServerGetSteamID( uint32_t *outIdLow, uint32_t *outIdHigh
 	}
 
 	if ( !outIdLow || !outIdHigh ) {
+		return qfalse;
+	}
+
+	if ( !state.gameServerInitialised ) {
 		return qfalse;
 	}
 
@@ -6495,6 +6585,10 @@ qboolean QL_Steamworks_ServerSetGameTags( const char *tags ) {
 		return qfalse;
 	}
 
+	if ( !state.gameServerInitialised ) {
+		return qfalse;
+	}
+
 	gameServer = QL_Steamworks_GetGameServer();
 	if ( !gameServer ) {
 		return qfalse;
@@ -6527,6 +6621,10 @@ qboolean QL_Steamworks_ServerSetKeyValue( const char *key, const char *value ) {
 	QL_SteamGameServer_SetKeyValueFn fn;
 
 	if ( !key || !key[0] || !value ) {
+		return qfalse;
+	}
+
+	if ( !state.gameServerInitialised ) {
 		return qfalse;
 	}
 
@@ -6602,6 +6700,10 @@ qboolean QL_Steamworks_ServerUpdateUserData( const CSteamID *steamId, const char
 		return qfalse;
 	}
 
+	if ( !state.gameServerInitialised ) {
+		return qfalse;
+	}
+
 	gameServer = QL_Steamworks_GetGameServer();
 	if ( !gameServer ) {
 		return qfalse;
@@ -6634,6 +6736,10 @@ uint32_t QL_Steamworks_ServerGetPublicIP( void ) {
 	void *gameServer;
 	void **vtable;
 	QL_SteamGameServer_GetPublicIPFn fn;
+
+	if ( !state.gameServerInitialised ) {
+		return 0u;
+	}
 
 	gameServer = QL_Steamworks_GetGameServer();
 	if ( !gameServer ) {
@@ -6985,6 +7091,10 @@ qboolean QL_Steamworks_ServerSendP2PPacket( const CSteamID *steamId, const void 
 		return qfalse;
 	}
 
+	if ( !state.gameServerInitialised ) {
+		return qfalse;
+	}
+
 	networking = QL_Steamworks_GetGameServerNetworking();
 	if ( !networking ) {
 		return qfalse;
@@ -7016,6 +7126,10 @@ qboolean QL_Steamworks_ServerIsP2PPacketAvailable( uint32_t *outSize, int channe
 	QL_SteamNetworking_IsP2PPacketAvailableFn isAvailable;
 
 	if ( !outSize ) {
+		return qfalse;
+	}
+
+	if ( !state.gameServerInitialised ) {
 		return qfalse;
 	}
 
@@ -7053,6 +7167,10 @@ qboolean QL_Steamworks_ServerReadP2PPacket( void *data, uint32_t dataSize, uint3
 		return qfalse;
 	}
 
+	if ( !state.gameServerInitialised ) {
+		return qfalse;
+	}
+
 	networking = QL_Steamworks_GetGameServerNetworking();
 	if ( !networking ) {
 		return qfalse;
@@ -7084,6 +7202,10 @@ qboolean QL_Steamworks_ServerHandleIncomingPacket( const void *data, int dataSiz
 	QL_SteamGameServer_HandleIncomingPacketFn handlePacket;
 
 	if ( !data || dataSize <= 0 ) {
+		return qfalse;
+	}
+
+	if ( !state.gameServerInitialised ) {
 		return qfalse;
 	}
 
@@ -7121,6 +7243,10 @@ int QL_Steamworks_ServerGetNextOutgoingPacket( void *data, int dataSize, uint32_
 		return 0;
 	}
 
+	if ( !state.gameServerInitialised ) {
+		return 0;
+	}
+
 	gameServer = QL_Steamworks_GetGameServer();
 	if ( !gameServer ) {
 		return 0;
@@ -7153,6 +7279,10 @@ qboolean QL_Steamworks_ServerAcceptP2PSession( const CSteamID *steamId ) {
 	QL_SteamNetworking_AcceptP2PSessionWithUserFn acceptSession;
 
 	if ( !steamId ) {
+		return qfalse;
+	}
+
+	if ( !state.gameServerInitialised ) {
 		return qfalse;
 	}
 
@@ -7370,6 +7500,10 @@ qboolean QL_Steamworks_ServerBeginAuthSession( const CSteamID *steamId, const ch
 		return qfalse;
 	}
 
+	if ( !state.gameServerInitialised ) {
+		return qfalse;
+	}
+
 	gameServer = QL_Steamworks_GetGameServer();
 	if ( !gameServer || !state.BeginAuthSession ) {
 		return qfalse;
@@ -7402,6 +7536,10 @@ void QL_Steamworks_ServerEndAuthSession( const CSteamID *steamId ) {
 	void *gameServer;
 
 	if ( !steamId ) {
+		return;
+	}
+
+	if ( !state.gameServerInitialised ) {
 		return;
 	}
 

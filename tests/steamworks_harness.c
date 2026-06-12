@@ -6747,6 +6747,17 @@ CSteamID QLR_SteamAPI_GetSteamID( void *user ) {
 	return id;
 }
 
+/*
+=============
+QL_ResetPlatformServices
+
+Harness-local stub for the platform service cache reset owned by
+platform_services.c in the engine build.
+=============
+*/
+void QL_ResetPlatformServices( void ) {
+}
+
 #include "../src/common/platform/platform_steamworks.c"
 
 /*

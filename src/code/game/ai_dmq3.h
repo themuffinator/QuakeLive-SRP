@@ -162,7 +162,6 @@ int BotHarvesterCarryingCubes(bot_state_t *bs);
 void Bot1FCTFSeekGoals(bot_state_t *bs);
 void Bot1FCTFRetreatGoals(bot_state_t *bs);
 void BotObeliskSeekGoals(bot_state_t *bs);
-void BotObeliskRetreatGoals(bot_state_t *bs);
 void BotGoHarvest(bot_state_t *bs);
 void BotHarvesterSeekGoals(bot_state_t *bs);
 void BotHarvesterRetreatGoals(bot_state_t *bs);

@@ -8,10 +8,14 @@ corridor against the retail `quakelive_steam.exe` botlib image. The owning
 retail binary is `quakelive_steam.exe`; the committed Binary Ninja HLIL and
 Ghidra function table were sufficient, so no game launch was needed.
 
-No C source rewrite is currently justified. The checked-in GPL-derived
-implementation already matches the static retail shape in this corridor. The
-work in this tranche is alias promotion, mapping documentation, and focused
-parity coverage for botlib/game/server wiring.
+The original 2026-06-06 tranche was mapping-only: the checked-in GPL-derived
+implementation already matched the broad static retail shape in this corridor,
+so the work was alias promotion, mapping documentation, and focused parity
+coverage for botlib/game/server wiring. Follow-up 2026-06-12 reconstructed one
+small producer detail: retail `BotGetLevelItemGoal` explicitly clears the two
+Quake Live goal-tail words while filling an item goal. A second follow-up in
+the same band reconstructed the `BotItemGoalInVisButNotVisible` consumer gate
+on tail word `0x0e`.
 
 ## Evidence Inputs
 
@@ -84,11 +88,15 @@ Binary Ninja HLIL confirms the following ownership and ordering facts:
   `found %d level items` diagnostic.
 - `sub_49DB00` computes avoid expiry through `AAS_Time` and writes the
   avoid-goal number/time pair.
+- `sub_49DDF0` writes the normal item-goal fields and clears goal words
+  `0x0e` and `0x0f` before returning the level-item number.
 - `sub_49E070` maps dynamic entity items back onto level items, retires stale
   dropped items, and links new dropped items with the retail timeout path.
 - `sub_49E870` and `sub_49EDA0` share the expected selection pattern:
   item-weight evaluation, travel-time scaling, avoid-goal checks, and final
   goal-stack push.
+- `sub_49F560` performs the item visibility trace only when the item flag is
+  set and goal word `0x0e` is zero.
 
 ## Source Reconstruction Notes
 
@@ -103,6 +111,13 @@ Binary Ninja HLIL confirms the following ownership and ordering facts:
 - `BotSetAvoidGoalTime` preserves the retail negative-avoid-time path that
   derives the avoid duration from item respawn data, plus the minimum/default
   clamp behavior.
+- Follow-up 2026-06-12: `BotGetLevelItemGoal` now clears
+  `goal->qlGoalExtra[0]` and `goal->qlGoalExtra[1]` in the item-goal producer,
+  matching retail writes to goal words `0x0e` and `0x0f`. The fields remain
+  generically named because no stronger semantic owner has been recovered.
+- Follow-up 2026-06-12: `BotItemGoalInVisButNotVisible` now checks
+  `goal->qlGoalExtra[0]` before tracing, matching the retail word-`0x0e`
+  visibility recheck gate.
 - `BotUpdateEntityItems` preserves dropped-item timeout, entity-number reuse
   detection, relinking for moved entity items, and area avoidance for jumppad
   items.

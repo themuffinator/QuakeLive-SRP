@@ -21,7 +21,8 @@ This pass focused on the botlib entity update and entity-info ABI shared by qaga
   - local `+0x98` / word `0x20` receives `gentity_t.health`.
   - local `+0x9c` / word `0x21` receives retail `playerState_t +0xdc`, cross-checked against item-grab and health-bar paths as `STAT_MAX_HEALTH`.
   - local `+0xa0..0xdc` / words `0x22..0x31` are a 16-entry active-powerup vector.
-  - local `+0xe0` / word `0x32` receives `!(gentity_t.flags & 0x00040000)`.
+  - local `+0xe0` / word `0x32` receives `!(gentity_t.flags & 0x00040000)`,
+    now source-named as `FL_BOTLIB_ENTITY_STATE_BIT18`.
   - local `+0xe4` / word `0x33` receives a red/blue carried-flag sidecar derived from retail playerstate offsets `+0x144` and `+0x148`.
 
 ## Source reconstruction
@@ -30,13 +31,27 @@ This pass focused on the botlib entity update and entity-info ABI shared by qaga
 - `aas_entityinfo_t` in `src/code/game/be_aas.h` now carries the matching tail, making the info layout `0xec` bytes in the retail 32-bit ABI.
 - `AAS_UpdateEntity` now transfers the tail into `aasworld.entities[entnum].i` before setting the entity number and valid bit, matching the retail copy order before relink handling.
 - `BotAIStartFrame` now fills the mapped tail fields recovered from qagame: entity time seconds, the three player movement fields, entity health, client max health, the active-powerup vector, the retail `gentity_t.flags` bit-18 boolean, and the red/blue carried-flag boolean.
-- The active-powerup vector is expressed in source terms as non-zero, non-expired, or permanent `ps.powerups[]` timers. Retail compares the timer values with a stride-`0x30` table rooted at `DAT_1008ff18`; the source expression preserves the gameplay-level active predicate while leaving the raw table identity documented for future refinement.
+- Follow-up 2026-06-12: the bit-18 producer mask is now named
+  `FL_BOTLIB_ENTITY_STATE_BIT18` in `g_local.h`, and the source producer uses
+  that flag instead of a private raw mask.
+- Follow-up 2026-06-12: the active-powerup vector now mirrors the retail
+  producer loop shape more closely. `BotAIStartFrame` writes all 16
+  `BOTLIB_QL_POWERUP_ACTIVE_COUNT` slots and treats a timer as active when it
+  is not earlier than the source-side threshold or is the permanent
+  `INT_MAX` timer, with no extra source-only `powerupTime != 0` guard. Retail
+  compares the timer values with a stride-`0x30` table rooted at
+  `DAT_1008ff18`; the source expression keeps the existing `level.time`
+  threshold mapping while leaving the raw table identity documented for future
+  refinement.
 
 ## Open questions
 
 The exact identity of the `DAT_1008ff18..DAT_10090218` table remains open. Multiple qagame paths use it for item/powerup timer comparisons and grants, so it is likely tied to retail item/powerup metadata, but this pass avoided inventing a source table until the owner is fully named.
 
-The `gentity_t.flags & 0x00040000` bit has no current source `FL_*` name. The producer-side boolean is reconstructed and preserved as `qlFlagsBit18Clear`, but the flag itself should be named only after a focused flag-owner pass.
+Closed 2026-06-12: the `gentity_t.flags & 0x00040000` bit is now source-named
+as `FL_BOTLIB_ENTITY_STATE_BIT18`. The producer-side boolean remains
+`qlFlagsBit18Clear` because the retail ABI exports the inverted flag state
+rather than the raw flag itself.
 
 ## Verification
 

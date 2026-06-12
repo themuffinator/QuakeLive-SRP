@@ -245,12 +245,14 @@ static qboolean GLW_PFDMatchesRequest( const PIXELFORMATDESCRIPTOR *pFD, const P
 static qboolean GLW_PFDCanCreateContext( int pixelformat, const PIXELFORMATDESCRIPTOR *pFD, qboolean useQWGL )
 {
 	HWND hWnd;
+	HWND previousHWnd;
 	HDC hDC;
 	HGLRC hGLRC;
 	DWORD error;
 	PIXELFORMATDESCRIPTOR testPFD;
 	qboolean result;
 
+	previousHWnd = g_wv.hWnd;
 	hWnd = CreateWindowExW( 0,
 			WINDOW_CLASS_NAME,
 			QL_PRODUCT_NAME_W,
@@ -264,6 +266,10 @@ static qboolean GLW_PFDCanCreateContext( int pixelformat, const PIXELFORMATDESCR
 	{
 		ri.Printf( PRINT_WARNING, "...temporary PFD probe window failed (err %lu)\n", GetLastError() );
 		return qtrue;
+	}
+	if ( g_wv.hWnd == hWnd )
+	{
+		g_wv.hWnd = previousHWnd;
 	}
 
 	hDC = GetDC( hWnd );

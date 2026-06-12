@@ -1172,15 +1172,6 @@ void BotGoHarvest(bot_state_t *bs) {
 
 /*
 ==================
-BotObeliskRetreatGoals
-==================
-*/
-void BotObeliskRetreatGoals(bot_state_t *bs) {
-	//nothing special
-}
-
-/*
-==================
 BotHarvesterSeekGoals
 ==================
 */
@@ -1354,9 +1345,6 @@ void BotTeamGoals(bot_state_t *bs, int retreat) {
 		}
 		else if (gametype == GT_1FCTF) {
 			Bot1FCTFRetreatGoals(bs);
-		}
-		else if (gametype == GT_OBELISK) {
-			BotObeliskRetreatGoals(bs);
 		}
 		else if (gametype == GT_HARVESTER) {
 			BotHarvesterRetreatGoals(bs);

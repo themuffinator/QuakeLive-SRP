@@ -70,11 +70,12 @@ not-same-team fallback, `LTG_KILL` setup, five-second `ltg_time`, sixty-second
 ## Inference Boundary
 
 The retail `AINode_InstaGib` body is now source-backed by the follow-up
-`ai_dmnet.c` reconstruction pass. The target-goal helpers in this note remain
+`ai_dmnet.c` reconstruction passes. The target-goal helpers in this note remain
 the evidence base for the node's target picker, while the node itself builds
 the transient movement goal directly from `trap_AAS_EntityInfo` in the
 target-present path. The raw retail player-state cleanup writes on the
-intermission/death exits remain a separate tail-layout boundary.
+intermission/death exits were closed on 2026-06-12 by mapping offsets `0x158`
+and `0x15c` to `PW_FLIGHT` and `PW_REDFLAG`.
 
 `BotGetInstaGibTargetGoal` intentionally follows the HLIL fallback loop shape:
 the target-picker helper skips `bs->client`, while the goal fallback is gated by
@@ -116,6 +117,5 @@ qagame compile pass could not be run here. No runtime launch was needed.
   **before 94% -> after 98%**.
 - Overall botlib plus qagame AI execution wiring confidence:
   **before 98.8% -> after 99.0%**. Remaining uncertainty is concentrated in
-  the unreconstructed teammate/lead/torment/fragbait tutorial bodies, the
-  instagib node's raw cleanup offsets, and native compile/runtime validation,
-  not this helper seam.
+  the unreconstructed teammate/lead/torment/fragbait tutorial bodies and native
+  compile/runtime validation, not this helper seam.

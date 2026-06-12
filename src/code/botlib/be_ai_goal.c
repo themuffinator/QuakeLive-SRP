@@ -895,6 +895,8 @@ int BotGetLevelItemGoal(int index, char *name, bot_goal_t *goal)
 			goal->number = li->number;
 			goal->flags = GFL_ITEM;
 			if (li->timeout) goal->flags |= GFL_DROPPED;
+			goal->qlGoalExtra[0] = 0;
+			goal->qlGoalExtra[1] = 0;
 			//botimport.Print(PRT_MESSAGE, "found li %s\n", itemconfig->iteminfo[li->iteminfo].name);
 			return li->number;
 		} //end if
@@ -1638,7 +1640,7 @@ int BotItemGoalInVisButNotVisible(int viewer, vec3_t eye, vec3_t viewangles, bot
 	bsp_trace_t trace;
 	vec3_t middle;
 
-	if (!(goal->flags & GFL_ITEM)) return qfalse;
+	if ( !(goal->flags & GFL_ITEM) || goal->qlGoalExtra[0] ) return qfalse;
 	//
 	VectorAdd(goal->mins, goal->mins, middle);
 	VectorScale(middle, 0.5, middle);

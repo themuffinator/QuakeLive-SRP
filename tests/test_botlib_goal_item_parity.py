@@ -286,6 +286,7 @@ def test_goal_item_config_heap_and_info_entity_source_match_retail_shape() -> No
 def test_goal_item_update_avoid_and_selection_source_match_retail_shape() -> None:
 	source = _read(BOTLIB_AI_GOAL)
 
+	get_level_goal = _extract_function_block(source, "int BotGetLevelItemGoal(int index, char *name, bot_goal_t *goal)")
 	goal_name = _extract_function_block(source, "void BotGoalName(int number, char *name, int size)")
 	add_avoid = _extract_function_block(source, "void BotAddToAvoidGoals(bot_goalstate_t *gs, int number, float avoidtime)")
 	remove_avoid = _extract_function_block(source, "void BotRemoveFromAvoidGoals(int goalstate, int number)")
@@ -293,6 +294,9 @@ def test_goal_item_update_avoid_and_selection_source_match_retail_shape() -> Non
 	set_avoid = _extract_function_block(source, "void BotSetAvoidGoalTime(int goalstate, int number, float avoidtime)")
 	find_entity = _extract_function_block(source, "void BotFindEntityForLevelItem(levelitem_t *li)")
 	update_items = _extract_function_block(source, "void BotUpdateEntityItems(void)")
+	item_visible = _extract_function_block(
+		source, "int BotItemGoalInVisButNotVisible(int viewer, vec3_t eye, vec3_t viewangles, bot_goal_t *goal)"
+	)
 	choose_ltg = _extract_function_block(
 		source, "int BotChooseLTGItem(int goalstate, vec3_t origin, int *inventory, int travelflags)"
 	)
@@ -303,6 +307,15 @@ def test_goal_item_update_avoid_and_selection_source_match_retail_shape() -> Non
 	assert "strncpy(name, itemconfig->iteminfo[li->iteminfo].name, size-1);" in goal_name
 	assert "name[size-1] = '\\0';" in goal_name
 	assert 'strcpy(name, "");' in goal_name
+	_assert_order(
+		get_level_goal,
+		"goal->number = li->number;",
+		"goal->flags = GFL_ITEM;",
+		"if (li->timeout) goal->flags |= GFL_DROPPED;",
+		"goal->qlGoalExtra[0] = 0;",
+		"goal->qlGoalExtra[1] = 0;",
+		"return li->number;",
+	)
 	assert "if (gs->avoidgoals[i] == number)" in add_avoid
 	assert "gs->avoidgoaltimes[i] = AAS_Time() + avoidtime;" in add_avoid
 	assert "if (gs->avoidgoaltimes[i] < AAS_Time())" in add_avoid
@@ -321,6 +334,11 @@ def test_goal_item_update_avoid_and_selection_source_match_retail_shape() -> Non
 	assert "VectorSubtract(li->origin, entinfo.origin, dir);" in find_entity
 	assert "if (VectorLength(dir) < 30)" in find_entity
 	assert "li->entitynum = ent;" in find_entity
+
+	assert "if ( !(goal->flags & GFL_ITEM) || goal->qlGoalExtra[0] ) return qfalse;" in item_visible
+	assert "trace = AAS_Trace(eye, NULL, NULL, middle, viewer, CONTENTS_SOLID);" in item_visible
+	assert "if (trace.fraction >= 1)" in item_visible
+	assert "if (entinfo.ltime < AAS_Time() - 0.5)" in item_visible
 
 	assert "for (li = levelitems; li; li = nextli)" in update_items
 	assert "if (li->timeout < AAS_Time())" in update_items
@@ -497,5 +515,12 @@ def test_goal_item_api_export_import_and_qagame_consumers_are_pinned() -> None:
 		"004a827b  arg1[0x2e] = sub_49dd00",
 		"004a8285  arg1[0x2f] = sub_49d3c0",
 		"004a828f  arg1[0x30] = sub_49e070",
+		"0049df51                      arg3[0xf] = fconvert.s(x87_r7_9)",
+		"0049df54                      arg3[0xc] = 1",
+		"0049df5b                      arg3[0xe] = 0",
+		"0049f58b  if ((arg3[0xc].b & 1) != 0 && arg3[0xe] == 0)",
+		"0049f60a          src: sub_4829c0(&var_1b0, arg2, 0, 0, &var_14, arg1, 1), n: 0x54)",
+		"0049f664                  sub_525f8e(eax_1 ^ &__saved_ebp)",
+		"0049f66c                  return 1",
 	):
 		assert evidence in hlil

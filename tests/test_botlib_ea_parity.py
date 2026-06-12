@@ -50,6 +50,90 @@ QAGAME_DECOMPILE_TOP = (
 	/ "decompile_top_functions.c"
 )
 
+EXPECTED_EA_EXPORT_STRUCT_ORDER = (
+	"EA_Command",
+	"EA_Say",
+	"EA_SayTeam",
+	"EA_Action",
+	"EA_Walk",
+	"EA_Gesture",
+	"EA_Talk",
+	"EA_Attack",
+	"EA_Use",
+	"EA_Respawn",
+	"EA_MoveUp",
+	"EA_MoveDown",
+	"EA_MoveForward",
+	"EA_MoveBack",
+	"EA_MoveLeft",
+	"EA_MoveRight",
+	"EA_Crouch",
+	"EA_SelectWeapon",
+	"EA_Jump",
+	"EA_DelayedJump",
+	"EA_Move",
+	"EA_View",
+	"EA_EndRegular",
+	"EA_GetInput",
+	"EA_ResetInput",
+)
+
+EXPECTED_EA_EXPORT_SOURCE_ORDER = (
+	"EA_Command",
+	"EA_Say",
+	"EA_SayTeam",
+	"EA_Action",
+	"EA_Walk",
+	"EA_Gesture",
+	"EA_Talk",
+	"EA_Attack",
+	"EA_Use",
+	"EA_Respawn",
+	"EA_Crouch",
+	"EA_MoveUp",
+	"EA_MoveDown",
+	"EA_MoveForward",
+	"EA_MoveBack",
+	"EA_MoveLeft",
+	"EA_MoveRight",
+	"EA_SelectWeapon",
+	"EA_Jump",
+	"EA_DelayedJump",
+	"EA_Move",
+	"EA_View",
+	"EA_EndRegular",
+	"EA_GetInput",
+	"EA_ResetInput",
+)
+
+EXPECTED_EA_EXPORT_STORE_ROWS = (
+	("EA_Command", "4A7940", "004a8060", "*arg1", 10),
+	("EA_Say", "4A78C0", "004a8066", "arg1[1]", 33),
+	("EA_SayTeam", "4A78F0", "004a806d", "arg1[2]", 33),
+	("EA_Action", "4A7A90", "004a8074", "arg1[3]", 27),
+	("EA_Walk", "4A7A70", "004a807b", "arg1[4]", 28),
+	("EA_Gesture", "4A7920", "004a8082", "arg1[5]", 28),
+	("EA_Talk", "4A7990", "004a8089", "arg1[6]", 28),
+	("EA_Attack", "4A7970", "004a8090", "arg1[7]", 25),
+	("EA_Use", "4A79B0", "004a8097", "arg1[8]", 25),
+	("EA_Respawn", "4A79D0", "004a809e", "arg1[9]", 25),
+	("EA_Crouch", "4A7A50", "004a80a5", "arg1[0x10]", 28),
+	("EA_MoveUp", "4A7AB0", "004a80ac", "arg1[0xa]", 25),
+	("EA_MoveDown", "4A7AD0", "004a80b3", "arg1[0xb]", 28),
+	("EA_MoveForward", "4A7AF0", "004a80ba", "arg1[0xc]", 28),
+	("EA_MoveBack", "4A7B10", "004a80c1", "arg1[0xd]", 28),
+	("EA_MoveLeft", "4A7B30", "004a80c8", "arg1[0xe]", 28),
+	("EA_MoveRight", "4A7B50", "004a80cf", "arg1[0xf]", 28),
+	("EA_SelectWeapon", "4A7950", "004a80d6", "arg1[0x11]", 24),
+	("EA_Jump", "4A79F0", "004a80dd", "arg1[0x12]", 44),
+	("EA_DelayedJump", "4A7A20", "004a80e4", "arg1[0x13]", 48),
+	("EA_Move", "4A7B70", "004a80eb", "arg1[0x14]", 105),
+	("EA_View", "4A7BE0", "004a80f2", "arg1[0x15]", 40),
+	("EA_GetInput", "4A7C10", "004a80f9", "arg1[0x17]", 40),
+	("EA_EndRegular", "4D7980", "004a8100", "arg1[0x16]", 1),
+	("EA_ResetInput", "4A7C40", "004a8107", "arg1[0x18]", 61),
+)
+
 
 def _read(path: Path) -> str:
 	return path.read_text(encoding="utf-8")
@@ -174,6 +258,64 @@ def test_botlib_ea_retail_function_map_and_export_slots_are_pinned() -> None:
 		"004a8107  arg1[0x18] = sub_4a7c40",
 	):
 		assert expected in hlil
+
+
+def test_botlib_ea_public_export_initializer_matches_retail_store_order() -> None:
+	functions_csv = _read(QL_STEAM_FUNCTIONS)
+	hlil = _read(QL_STEAM_HLIL_PART03)
+	aliases = json.loads(_read(SYMBOL_ALIASES))["quakelive_steam_srp"]
+	interface_source = _read(BOTLIB_INTERFACE)
+	botlib_public = _read(BOTLIB_PUBLIC)
+
+	ea_export = botlib_public[
+		botlib_public.index("typedef struct ea_export_s") : botlib_public.index("} ea_export_t;") + len("} ea_export_t;")
+	]
+	init_ea = _extract_function_block(interface_source, "static void Init_EA_Export( ea_export_t *ea )")
+	init_hlil_start = hlil.index("004a8060    void __convention(\"regparm\") sub_4a8060")
+	init_hlil_end = hlil.index("004a8110    void __convention(\"regparm\") sub_4a8110", init_hlil_start)
+	init_hlil = hlil[init_hlil_start:init_hlil_end]
+
+	assert aliases["sub_4A8060"] == "Init_EA_Export"
+	assert "FUN_004a8060,004a8060,175,0,unknown" in functions_csv
+	assert len(EXPECTED_EA_EXPORT_STRUCT_ORDER) == 0x19
+	assert len(EXPECTED_EA_EXPORT_SOURCE_ORDER) == len(EXPECTED_EA_EXPORT_STORE_ROWS) == 0x19
+	assert "004a8418  sub_4a8060(&data_16dd8b8)" in hlil
+
+	previous_field_pos = -1
+	for field_name in EXPECTED_EA_EXPORT_STRUCT_ORDER:
+		field_pos = ea_export.index(f"(*{field_name})")
+		assert previous_field_pos < field_pos
+		previous_field_pos = field_pos
+
+	assert ea_export.index("(*EA_MoveRight)") < ea_export.index("(*EA_Crouch)")
+	assert init_ea.index("ea->EA_Crouch = EA_Crouch;") < init_ea.index("ea->EA_MoveUp = EA_MoveUp;")
+	assert init_hlil.index("004a80a5  arg1[0x10] = sub_4a7a50") < init_hlil.index(
+		"004a80ac  arg1[0xa] = sub_4a7ab0"
+	)
+
+	previous_source_pos = -1
+	for field_name in EXPECTED_EA_EXPORT_SOURCE_ORDER:
+		source_pos = init_ea.index(f"ea->{field_name} = {field_name};")
+		assert previous_source_pos < source_pos
+		previous_source_pos = source_pos
+
+	previous_hlil_pos = -1
+	for field_name, address, hlil_address, hlil_slot, ghidra_size in EXPECTED_EA_EXPORT_STORE_ROWS:
+		hlil_anchor = f"{hlil_address}  {hlil_slot} = sub_{address.lower()}"
+		hlil_pos = init_hlil.index(hlil_anchor)
+		assert previous_hlil_pos < hlil_pos
+		previous_hlil_pos = hlil_pos
+
+		if field_name == "EA_EndRegular":
+			assert f"sub_{address}" not in aliases
+		else:
+			assert aliases[f"sub_{address}"] == field_name
+		assert f"FUN_00{address.lower()},00{address.lower()},{ghidra_size},0,unknown" in functions_csv
+
+	assert init_ea.index("ea->EA_EndRegular = EA_EndRegular;") < init_ea.index("ea->EA_GetInput = EA_GetInput;")
+	assert init_hlil.index("004a80f9  arg1[0x17] = sub_4a7c10") < init_hlil.index(
+		"004a8100  arg1[0x16] = sub_4d7980"
+	)
 
 
 def test_botlib_ea_input_source_shape_matches_retail_hlil() -> None:

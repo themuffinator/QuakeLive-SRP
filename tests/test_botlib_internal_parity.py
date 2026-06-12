@@ -36,6 +36,7 @@ SERVER_QL_GAME_IMPORTS = REPO_ROOT / "src" / "code" / "server" / "ql_game_import
 GAME_AI_MAIN = REPO_ROOT / "src" / "code" / "game" / "ai_main.c"
 GAME_AI_DMQ3 = REPO_ROOT / "src" / "code" / "game" / "ai_dmq3.c"
 GAME_BE_AI_GOAL_H = REPO_ROOT / "src" / "code" / "game" / "be_ai_goal.h"
+GAME_LOCAL_H = REPO_ROOT / "src" / "code" / "game" / "g_local.h"
 GAME_MEM = REPO_ROOT / "src" / "code" / "game" / "g_mem.c"
 GAME_PUBLIC_H = REPO_ROOT / "src" / "code" / "game" / "g_public.h"
 GAME_SYSCALLS = REPO_ROOT / "src" / "code" / "game" / "g_syscalls.c"
@@ -134,6 +135,86 @@ BOTLIB_EXPORT_CORE_TAIL = (
 	("Test", "BotExportTest", "4D7970", "data_16dda80", "004a849f", 3),
 )
 
+BOTLIB_AI_EXPORT_SLOTS = (
+	("BotLoadCharacter", "BotLoadCharacter", "497590", 0, "004a8110", 337),
+	("BotFreeCharacter", "BotFreeCharacter", "496A80", 1, "004a8116", 35),
+	("Characteristic_Float", "Characteristic_Float", "497780", 2, "004a811d", 139),
+	("Characteristic_BFloat", "Characteristic_BFloat", "497810", 3, "004a8124", 172),
+	("Characteristic_Integer", "Characteristic_Integer", "4978C0", 4, "004a812b", 143),
+	("Characteristic_BInteger", "Characteristic_BInteger", "497950", 5, "004a8132", 139),
+	("Characteristic_String", "Characteristic_String", "4979E0", 6, "004a8139", 147),
+	("BotAllocChatState", "BotAllocChatState", "49C440", 7, "004a8140", None),
+	("BotFreeChatState", "BotFreeChatState", "49C480", 8, "004a8147", 213),
+	("BotQueueConsoleMessage", "BotQueueConsoleMessage", "497CB0", 9, "004a814e", 289),
+	("BotRemoveConsoleMessage", "BotRemoveConsoleMessage", "497BD0", 10, "004a8155", 221),
+	("BotNextConsoleMessage", "BotNextConsoleMessage", "497DE0", 11, "004a815c", 121),
+	("BotNumConsoleMessages", "BotNumConsoleMessages", "497E60", 12, "004a8163", 75),
+	("BotInitialChat", "BotInitialChat", "49B6C0", 13, "004a816a", 1044),
+	("BotNumInitialChats", "BotNumInitialChats", "49B610", 14, "004a8171", 176),
+	("BotReplyChat", "BotReplyChat", "49BAE0", 15, "004a8178", 1732),
+	("BotChatLength", "BotChatLength", "49C1B0", 16, "004a817f", 91),
+	("BotEnterChat", "BotEnterChat", "49C210", 17, "004a8186", 229),
+	("BotGetChatMessage", "BotGetChatMessage", "49C300", 18, "004a818d", 109),
+	("StringContains", "StringContains", "498020", 19, "004a8194", 222),
+	("BotFindMatch", "BotFindMatch", "4999C0", 20, "004a819b", 541),
+	("BotMatchVariable", "BotMatchVariable", "499BF0", 21, "004a81a2", 108),
+	("UnifyWhiteSpaces", "UnifyWhiteSpaces", "497F00", 22, "004a81a9", 283),
+	("BotReplaceSynonyms", "BotReplaceSynonyms", "498710", 23, "004a81b0", 376),
+	("BotLoadChatFile", "BotLoadChatFile", "49AFB0", 24, "004a81b7", 437),
+	("BotSetChatGender", "BotSetChatGender", "49C370", 25, "004a81be", 96),
+	("BotSetChatName", "BotSetChatName", "49C3D0", 26, "004a81c5", 109),
+	("BotResetGoalState", "BotResetGoalState", "49F680", 27, "004a81cc", 107),
+	("BotResetAvoidGoals", "BotResetAvoidGoals", "49D9B0", 28, "004a81d3", 109),
+	("BotRemoveFromAvoidGoals", "BotRemoveFromAvoidGoals", "49DBA0", 29, "004a81da", 148),
+	("BotPushGoal", "BotPushGoal", "49E650", 30, "004a81e1", 134),
+	("BotPopGoal", "BotPopGoal", "49E6E0", 31, "004a81e8", 82),
+	("BotEmptyGoalStack", "BotEmptyGoalStack", "49E740", 32, "004a81ef", 75),
+	("BotDumpAvoidGoals", "BotDumpAvoidGoals", "49DA20", 33, "004a81f9", 216),
+	("BotDumpGoalStack", "BotDumpGoalStack", "49E590", 34, "004a8203", 181),
+	("BotGoalName", "BotGoalName", "49D940", 35, "004a820d", 99),
+	("BotGetTopGoal", "BotGetTopGoal", "49E790", 36, "004a8217", 106),
+	("BotGetSecondGoal", "BotGetSecondGoal", "49E800", 37, "004a8221", 107),
+	("BotChooseLTGItem", "BotChooseLTGItem", "49E870", 38, "004a822b", 1315),
+	("BotChooseNBGItem", "BotChooseNBGItem", "49EDA0", 39, "004a8235", 1562),
+	("BotTouchingGoal", "BotTouchingGoal", "49F3C0", 40, "004a823f", 412),
+	("BotItemGoalInVisButNotVisible", "BotItemGoalInVisButNotVisible", "49F560", 41, "004a8249", 286),
+	("BotGetLevelItemGoal", "BotGetLevelItemGoal", "49DDF0", 42, "004a8253", 395),
+	("BotGetNextCampSpotGoal", "BotGetNextCampSpotGoal", "49E000", 43, "004a825d", 110),
+	("BotGetMapLocationGoal", "BotGetMapLocationGoal", "49DF80", 44, "004a8267", 122),
+	("BotAvoidGoalTime", "BotAvoidGoalTime", "49DC40", 45, "004a8271", 172),
+	("BotSetAvoidGoalTime", "BotSetAvoidGoalTime", "49DD00", 46, "004a827b", 233),
+	("BotInitLevelItems", "BotInitLevelItems", "49D3C0", 47, "004a8285", 1395),
+	("BotUpdateEntityItems", "BotUpdateEntityItems", "49E070", 48, "004a828f", 1292),
+	("BotLoadItemWeights", "BotLoadItemWeights", "49F6F0", 49, "004a8299", 129),
+	("BotFreeItemWeights", "BotFreeItemWeights", "49F780", 50, "004a82a3", 99),
+	("BotInterbreedGoalFuzzyLogic", "BotInterbreedGoalFuzzyLogic", "49CC30", 51, "004a82ad", 181),
+	("BotSaveGoalFuzzyLogic", "BotSaveGoalFuzzyLogic", "49CCF0", 52, "004a82b7", 62),
+	("BotMutateGoalFuzzyLogic", "BotMutateGoalFuzzyLogic", "49CD30", 53, "004a82c1", 80),
+	("BotAllocGoalState", "BotAllocGoalState", "49F7F0", 54, "004a82cb", 68),
+	("BotFreeGoalState", "BotFreeGoalState", "49F840", 55, "004a82d5", 99),
+	("BotResetMoveState", "BotResetMoveState", "4A5920", 56, "004a82df", 81),
+	("BotMoveToGoal", "BotMoveToGoal", "4A4A50", 57, "004a82e9", 2056),
+	("BotMoveInDirection", "BotMoveInDirection", "4A17F0", 58, "004a82f3", 234),
+	("BotResetAvoidReach", "BotResetAvoidReach", "4A5830", 59, "004a82fd", 110),
+	("BotResetLastAvoidReach", "BotResetLastAvoidReach", "4A58A0", 60, "004a8307", 119),
+	("BotReachabilityArea", "BotReachabilityArea", "49FED0", 61, "004a8311", 465),
+	("BotMovementViewTarget", "BotMovementViewTarget", "4A0CD0", 62, "004a831b", 573),
+	("BotPredictVisiblePosition", "BotPredictVisiblePosition", "4A0F70", 63, "004a8325", 365),
+	("BotAllocMoveState", "BotAllocMoveState", "49F9C0", 64, "004a832f", None),
+	("BotFreeMoveState", "BotFreeMoveState", "49FA00", 65, "004a8339", 89),
+	("BotInitMoveState", "BotInitMoveState", "49FAB0", 66, "004a8343", 266),
+	("BotAddAvoidSpot", "BotAddAvoidSpot", "4A0990", 67, "004a834d", 185),
+	("BotChooseBestFightWeapon", "BotChooseBestFightWeapon", "4A6190", 68, "004a8357", 208),
+	("BotGetWeaponInfo", "BotGetWeaponInfo", "4A6100", 69, "004a8361", 129),
+	("BotLoadWeaponWeights", "BotLoadWeaponWeights", "4A6060", 70, "004a836b", 146),
+	("BotAllocWeaponState", "BotAllocWeaponState", "4A62A0", 71, "004a8375", None),
+	("BotFreeWeaponState", "BotFreeWeaponState", "4A62D0", 72, "004a837f", 99),
+	("BotResetWeaponState", "BotResetWeaponState", "4A6260", 73, "004a8389", 62),
+	("GeneticParentsAndChildSelection", "GeneticParentsAndChildSelection", "49C810", 74, "004a8393", 1047),
+	("BotDrawDebugAreas", "BotDrawDebugAreas", "484BF0", 75, "004a839d", 449),
+	("BotDrawAvoidSpots", "BotDrawAvoidSpots", "484DC0", 76, "004a83a7", 83),
+)
+
 
 class BotGoal(ctypes.Structure):
 	_fields_ = [
@@ -218,7 +299,8 @@ def test_qagame_activate_goal_layout_and_setup_lifecycle_match_retail_references
 	)
 
 	assert ctypes.sizeof(BotGoal) == 0x40
-	assert "int qlGoalExtra[2];" in be_ai_goal_h
+	assert "int qlGoalExtra[2];\t\t\t//retail words 0x0e-0x0f: item producer clears; word 0x0e gates item-visibility recheck" in be_ai_goal_h
+	assert "semantics pending" not in be_ai_goal_h
 	assert "int qlGoalExtra[ 2 ];" in harness
 	assert "#define POOLSIZE\t(4 * 1024 * 1024)" in g_mem
 
@@ -626,6 +708,7 @@ def test_botlib_ql_entity_state_tail_matches_retail_layout_references() -> None:
 	be_aas_h = BOTLIB_BE_AAS_H.read_text(encoding="utf-8")
 	aas_entity_source = BOTLIB_AAS_ENTITY.read_text(encoding="utf-8")
 	ai_main_source = GAME_AI_MAIN.read_text(encoding="utf-8")
+	game_local_h = GAME_LOCAL_H.read_text(encoding="utf-8")
 	qagame_ghidra = QAGAME_GHIDRA_TOP.read_text(encoding="utf-8")
 	qagame_hlil = QAGAME_HLIL_PART01.read_text(encoding="utf-8")
 	ql_steam_hlil = QL_STEAM_HLIL_PART03.read_text(encoding="utf-8")
@@ -654,7 +737,7 @@ def test_botlib_ql_entity_state_tail_matches_retail_layout_references() -> None:
 	assert "Com_Memcpy(ent->i.qlPowerupsActive, state->qlPowerupsActive, sizeof(ent->i.qlPowerupsActive));" in aas_entity_source
 	assert "ent->i.qlFlagsBit18Clear = state->qlFlagsBit18Clear;" in aas_entity_source
 	assert "ent->i.qlRedBlueFlagCarrier = state->qlRedBlueFlagCarrier;" in aas_entity_source
-	assert "#define RETAIL_BOTLIB_GENTITY_FLAG_BIT18\t0x00040000" in ai_main_source
+	assert "#define FL_BOTLIB_ENTITY_STATE_BIT18\t\t0x00040000" in game_local_h
 	assert "state.qlTimeSeconds = (float)( ent->s.time / 1000 );" in ai_main_source
 	assert "state.qlPlayerGravity = ent->client->ps.gravity;" in ai_main_source
 	assert "state.qlPlayerSpeed = ent->client->ps.speed;" in ai_main_source
@@ -662,8 +745,11 @@ def test_botlib_ql_entity_state_tail_matches_retail_layout_references() -> None:
 	assert "state.qlEntityHealth = ent->health;" in ai_main_source
 	assert "state.qlClientMaxHealth = ent->client->ps.stats[STAT_MAX_HEALTH];" in ai_main_source
 	assert "state.qlRedBlueFlagCarrier = ( ent->client->ps.powerups[PW_REDFLAG]" in ai_main_source
+	assert "for ( powerup = 0; powerup < BOTLIB_QL_POWERUP_ACTIVE_COUNT; powerup++ )" in ai_main_source
 	assert "powerupTime = ent->client->ps.powerups[powerup];" in ai_main_source
 	assert "powerupTime >= level.time || powerupTime == INT_MAX" in ai_main_source
+	assert "powerupTime != 0" not in ai_main_source
+	assert "powerup < MAX_POWERUPS" not in ai_main_source
 
 	assert "memset(&iStack_e0,0,0xd0);" in qagame_ghidra
 	assert "fStack_70 = (float)(piVar4[0x47] / 1000);" in qagame_ghidra
@@ -671,7 +757,9 @@ def test_botlib_ql_entity_state_tail_matches_retail_layout_references() -> None:
 	assert "iStack_60 = piVar4[0x52];" in qagame_ghidra
 	assert "uStack_5c = *(undefined4 *)(iVar3 + 0xdc);" in qagame_ghidra
 	assert "if ((*(int *)(iVar3 + 0x144) != 0) || (uStack_14 = 0, *(int *)(iVar3 + 0x148) != 0))" in qagame_ghidra
+	assert "piVar2 = &DAT_1008ff18;" in qagame_ghidra
 	assert "piVar5 = (int *)(iVar3 + 0x180);" in qagame_ghidra
+	assert "if ((*piVar5 < *piVar2) && (*piVar5 != -1))" in qagame_ghidra
 	assert "memset(auStack_58,0,0x40);" in qagame_ghidra
 	assert "*(esp_14 + 0x88) = float.s" in qagame_hlil
 	assert "*(esp_14 + 0x98) = *(i + 0x148)" in qagame_hlil
@@ -1065,6 +1153,66 @@ def test_botlib_export_table_retail_layout_includes_ea_walk_slot() -> None:
 	assert "004a8422  sub_4a8110(&data_16dd91c)" in ql_steam_hlil
 	assert "004a8427  data_16dda50 = sub_4a7ce0" in ql_steam_hlil
 	assert "004a8481  data_16dda74 = sub_4a7e90" in ql_steam_hlil
+
+
+def test_botlib_ai_public_export_initializer_matches_retail_table_order() -> None:
+	botlib_h = BOTLIB_H.read_text(encoding="utf-8")
+	be_interface = BOTLIB_INTERFACE.read_text(encoding="utf-8")
+	ql_steam_hlil = QL_STEAM_HLIL_PART03.read_text(encoding="utf-8")
+	ghidra_functions = QL_STEAM_GHIDRA_FUNCTIONS.read_text(encoding="utf-8")
+	aliases = json.loads(SYMBOL_ALIASES.read_text(encoding="utf-8"))["quakelive_steam_srp"]
+
+	ai_export = _extract_function_block(botlib_h, "typedef struct ai_export_s")
+	init_ai = _extract_function_block(be_interface, "static void Init_AI_Export( ai_export_t *ai )")
+	get_api = _extract_function_block(be_interface, "botlib_export_t *GetBotLibAPI(int apiVersion, botlib_import_t *import)")
+
+	assert len(BOTLIB_AI_EXPORT_SLOTS) == 0x4D
+	assert aliases["sub_4A8110"] == "Init_AI_Export"
+	assert "FUN_004a8110,004a8110,674,0,unknown" in ghidra_functions
+	assert "004a8110    void __convention(\"regparm\") sub_4a8110" in ql_steam_hlil
+	assert "004a8422  sub_4a8110(&data_16dd91c)" in ql_steam_hlil
+	assert "004a83e0  sub_4c95e0(&data_16dd860, 0, 0x224)" in ql_steam_hlil
+	assert "Init_AI_Export(&be_botlib_export.ai);" in get_api
+	assert get_api.index("Init_EA_Export(&be_botlib_export.ea);") < get_api.index(
+		"Init_AI_Export(&be_botlib_export.ai);"
+	)
+	assert get_api.index("Init_AI_Export(&be_botlib_export.ai);") < get_api.index(
+		"be_botlib_export.BotLibSetup = Export_BotLibSetup;"
+	)
+
+	def retail_arg1_slot(slot: int) -> str:
+		if slot == 0:
+			return "*arg1"
+		if slot < 10:
+			return f"arg1[{slot}]"
+		return f"arg1[0x{slot:x}]"
+
+	previous_struct_index = -1
+	previous_source_index = -1
+	previous_hlil_index = -1
+	for expected_slot, (field_name, source_name, address, slot, hlil_address, ghidra_size) in enumerate(
+		BOTLIB_AI_EXPORT_SLOTS
+	):
+		assert slot == expected_slot
+
+		struct_index = ai_export.index(f"(*{field_name})")
+		assert previous_struct_index < struct_index
+		previous_struct_index = struct_index
+
+		source_index = init_ai.index(f"ai->{field_name} = {source_name};")
+		assert previous_source_index < source_index
+		previous_source_index = source_index
+
+		hlil_assignment = f"{hlil_address}  {retail_arg1_slot(slot)} = sub_{address.lower()}"
+		hlil_index = ql_steam_hlil.index(hlil_assignment)
+		assert previous_hlil_index < hlil_index
+		previous_hlil_index = hlil_index
+
+		assert aliases[f"sub_{address}"] == source_name
+		if ghidra_size is None:
+			assert f"00{address.lower()}    " in ql_steam_hlil
+		else:
+			assert f"FUN_00{address.lower()},00{address.lower()},{ghidra_size},0,unknown" in ghidra_functions
 
 
 def test_botlib_export_table_aliases_cover_aas_ea_and_top_level_helpers() -> None:
@@ -2698,6 +2846,10 @@ def test_botlib_source_keeps_goal_state_stack_and_avoid_helpers() -> None:
 	goal_source = BOTLIB_AI_GOAL.read_text(encoding="utf-8")
 
 	state_from_handle_block = _extract_function_block(goal_source, "bot_goalstate_t *BotGoalStateFromHandle(int handle)")
+	get_level_goal_block = _extract_function_block(goal_source, "int BotGetLevelItemGoal(int index, char *name, bot_goal_t *goal)")
+	item_visible_block = _extract_function_block(
+		goal_source, "int BotItemGoalInVisButNotVisible(int viewer, vec3_t eye, vec3_t viewangles, bot_goal_t *goal)"
+	)
 	push_block = _extract_function_block(goal_source, "void BotPushGoal(int goalstate, bot_goal_t *goal)")
 	top_block = _extract_function_block(goal_source, "int BotGetTopGoal(int goalstate, bot_goal_t *goal)")
 	second_block = _extract_function_block(goal_source, "int BotGetSecondGoal(int goalstate, bot_goal_t *goal)")
@@ -2709,6 +2861,9 @@ def test_botlib_source_keeps_goal_state_stack_and_avoid_helpers() -> None:
 
 	assert 'botimport.Print(PRT_FATAL, "goal state handle %d out of range\\n", handle);' in state_from_handle_block
 	assert 'botimport.Print(PRT_FATAL, "invalid goal state %d\\n", handle);' in state_from_handle_block
+	assert "goal->qlGoalExtra[0] = 0;" in get_level_goal_block
+	assert "goal->qlGoalExtra[1] = 0;" in get_level_goal_block
+	assert "if ( !(goal->flags & GFL_ITEM) || goal->qlGoalExtra[0] ) return qfalse;" in item_visible_block
 	assert 'botimport.Print(PRT_ERROR, "goal heap overflow\\n");' in push_block
 	assert "gs->goalstacktop++;" in push_block
 	assert "Com_Memcpy(&gs->goalstack[gs->goalstacktop], goal, sizeof(bot_goal_t));" in push_block

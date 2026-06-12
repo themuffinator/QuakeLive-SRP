@@ -4208,13 +4208,18 @@ void Com_InitSteamGameServer( void ) {
 	uint32_t	steamIp;
 
 	dedicated = ( com_dedicated && com_dedicated->integer > 0 ) ? qtrue : qfalse;
-	Cvar_Get( "sv_setSteamAccount", "", CVAR_ARCHIVE | CVAR_PROTECTED );
-	steamServerVersion = Cvar_Get( "sv_steamServerVersion", QL_STEAM_GAMESERVER_DEFAULT_VERSION, CVAR_ARCHIVE );
-	steamVac = Cvar_Get( "sv_vac", "1", CVAR_SERVERINFO | CVAR_ARCHIVE );
 	Cvar_VariableStringBuffer( "net_ip", netIp, sizeof( netIp ) );
 	netPort = Cvar_Get( "net_port", va( "%i", PORT_SERVER ), CVAR_LATCH );
 	steamIp = Com_SteamPackGameServerIP( netIp );
+
+	if ( Cvar_VariableIntegerValue( "com_build" ) ) {
+		return;
+	}
+
+	steamServerVersion = Cvar_Get( "sv_steamServerVersion", QL_STEAM_GAMESERVER_DEFAULT_VERSION, CVAR_ARCHIVE );
+	steamVac = Cvar_Get( "sv_vac", "1", CVAR_SERVERINFO | CVAR_ARCHIVE );
 	versionString = ( steamServerVersion && steamServerVersion->string && steamServerVersion->string[0] ) ? steamServerVersion->string : QL_STEAM_GAMESERVER_DEFAULT_VERSION;
+
 	Com_DPrintf( "Steam GameServer bootstrap version %s (%s; retailDefaultOwner=%s) via %s [%s]\n",
 		versionString,
 		Com_GetSteamGameServerVersionSourceLabel( steamServerVersion ),
@@ -4228,6 +4233,7 @@ void Com_InitSteamGameServer( void ) {
 	}
 
 	QL_Steamworks_ServerSetDedicated( dedicated );
+	Cvar_Get( "sv_setSteamAccount", "", CVAR_ARCHIVE | CVAR_PROTECTED );
 	Cvar_VariableStringBuffer( "sv_setSteamAccount", steamAccount, sizeof( steamAccount ) );
 	QL_Steamworks_ServerLogOn( steamAccount );
 	QL_Steamworks_ServerEnableHeartbeats( qfalse );

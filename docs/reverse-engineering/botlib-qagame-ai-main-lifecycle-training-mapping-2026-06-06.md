@@ -106,8 +106,11 @@ Observed source anchors now pinned by tests:
 - `BotApplyBeyondRealityTravelFlags` preserves the retail serverinfo map-name
   lookup and clears `TFL_FUNCBOB` on the `beyondreality` map-specific branch.
 - `BotSetTrainingBotState` preserves the retail trainer entity flag groups,
-  rocket-launcher ammo grant, weapon-bit updates, and disable-path shotgun ammo
-  reset used by the late tutorial nodes.
+  including the `FL_BOT_TRAINING_GODMODE` and
+  `FL_BOT_TRAINING_NO_KNOCKBACK` sidecar bits paired with the familiar
+  `FL_GODMODE` and `FL_NO_KNOCKBACK` flags, plus the rocket-launcher ammo
+  grant, weapon-bit updates, and disable-path shotgun ammo reset used by the
+  late tutorial nodes.
 - `BotUpdateItemDelayTime` preserves the retail `g_training` guard,
   `g_spSkill > 3.0` gate, explicit frame-time elapsed-seconds calculation, and
   staged `bot_itemDelayTime` values `10/15/20/25` after 60/120/180/240 seconds.

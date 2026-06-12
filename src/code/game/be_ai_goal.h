@@ -47,7 +47,7 @@ typedef struct bot_goal_s
 	int number;					//goal number
 	int flags;					//goal flags
 	int iteminfo;				//item information
-	int qlGoalExtra[2];			//retail Quake Live goal tail, semantics pending
+	int qlGoalExtra[2];			//retail words 0x0e-0x0f: item producer clears; word 0x0e gates item-visibility recheck
 } bot_goal_t;
 
 //reset the whole goal state, but keep the item weights

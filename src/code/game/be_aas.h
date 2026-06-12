@@ -156,7 +156,7 @@ typedef struct aas_entityinfo_s
 	int		qlEntityHealth;	// retail word 0x27: gentity_t.health when client data exists
 	int		qlClientMaxHealth;	// retail word 0x28: playerState_t.stats[STAT_MAX_HEALTH] when client data exists
 	int		qlPowerupsActive[BOTLIB_QL_POWERUP_ACTIVE_COUNT];	// retail words 0x29-0x38
-	int		qlFlagsBit18Clear;	// retail word 0x39: !(gentity_t.flags & 0x00040000)
+	int		qlFlagsBit18Clear;	// retail word 0x39: !(gentity_t.flags & FL_BOTLIB_ENTITY_STATE_BIT18)
 	int		qlRedBlueFlagCarrier;	// retail word 0x3a: red/blue carried-flag sidecar present
 } aas_entityinfo_t;
 

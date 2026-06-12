@@ -10,6 +10,7 @@ GAME_AI_MAIN = REPO_ROOT / "src" / "code" / "game" / "ai_main.c"
 GAME_AI_MAIN_H = REPO_ROOT / "src" / "code" / "game" / "ai_main.h"
 GAME_AI_DMQ3 = REPO_ROOT / "src" / "code" / "game" / "ai_dmq3.c"
 GAME_AI_DMQ3_H = REPO_ROOT / "src" / "code" / "game" / "ai_dmq3.h"
+GAME_LOCAL = REPO_ROOT / "src" / "code" / "game" / "g_local.h"
 GAME_PUBLIC = REPO_ROOT / "src" / "code" / "game" / "g_public.h"
 GAME_SYSCALLS = REPO_ROOT / "src" / "code" / "game" / "g_syscalls.c"
 SERVER_GAME = REPO_ROOT / "src" / "code" / "server" / "sv_game.c"
@@ -638,8 +639,8 @@ def test_qagame_ai_main_lifecycle_aliases_metadata_and_source_are_pinned() -> No
 		assert duplicate_debug_register not in bot_ai_setup
 
 	for expected in (
-		"#define BOT_TRAINING_ENTITY_GODMODE_FLAGS\t\t(FL_GODMODE | 0x00010000)",
-		"#define BOT_TRAINING_ENTITY_NO_KNOCKBACK_FLAGS\t(FL_NO_KNOCKBACK | 0x00020000)",
+		"#define BOT_TRAINING_ENTITY_GODMODE_FLAGS\t\t(FL_GODMODE | FL_BOT_TRAINING_GODMODE)",
+		"#define BOT_TRAINING_ENTITY_NO_KNOCKBACK_FLAGS\t(FL_NO_KNOCKBACK | FL_BOT_TRAINING_NO_KNOCKBACK)",
 		"#define BOT_TRAINING_EXTRA_WEAPON_BIT\t\t\t0x00008000",
 		"#define BOT_DYNAMIC_SKILL_UPDATE_SECONDS\t\t5",
 		"#define BOT_DYNAMIC_SKILL_STALL_SECONDS\t\t\t30",
@@ -648,6 +649,13 @@ def test_qagame_ai_main_lifecycle_aliases_metadata_and_source_are_pinned() -> No
 		"#define BOT_DYNAMIC_SKILL_ADJUSTMENT_STEP\t\t0.083333336f",
 	):
 		assert expected in ai_main
+
+	game_local = _read(GAME_LOCAL)
+	for expected in (
+		"#define FL_BOT_TRAINING_GODMODE\t\t\t0x00010000",
+		"#define FL_BOT_TRAINING_NO_KNOCKBACK\t0x00020000",
+	):
+		assert expected in game_local
 
 	for normalized_name, (path, source_signature, source_anchors) in SOURCE_HELPERS_IN_OTHER_FILES.items():
 		block = _extract_function_block(_read(path), source_signature)

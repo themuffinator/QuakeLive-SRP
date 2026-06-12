@@ -12,6 +12,7 @@ GAME_AI_DMQ3 = REPO_ROOT / "src" / "code" / "game" / "ai_dmq3.c"
 GAME_AI_MAIN = REPO_ROOT / "src" / "code" / "game" / "ai_main.c"
 GAME_AI_MAIN_H = REPO_ROOT / "src" / "code" / "game" / "ai_main.h"
 GAME_CMDS = REPO_ROOT / "src" / "code" / "game" / "g_cmds.c"
+GAME_LOCAL = REPO_ROOT / "src" / "code" / "game" / "g_local.h"
 GAME_PUBLIC = REPO_ROOT / "src" / "code" / "game" / "g_public.h"
 GAME_SYSCALLS = REPO_ROOT / "src" / "code" / "game" / "g_syscalls.c"
 SERVER_GAME = REPO_ROOT / "src" / "code" / "server" / "sv_game.c"
@@ -83,12 +84,24 @@ SOURCE_OWNED_HELPERS = {
 			"bs->ainode = AINode_InstaGib;",
 		),
 	),
+	"BotInstaGibExitCleanup": (
+		GAME_AI_DMNET,
+		"static void BotInstaGibExitCleanup(bot_state_t *bs)",
+		(
+			"ent = &g_entities[bs->client];",
+			"ent->flags &= ~FL_BOT_TRAINING_GODMODE;",
+			"ent->client->ps.powerups[PW_FLIGHT] = 0;",
+			"ent->client->ps.powerups[PW_REDFLAG] = 0;",
+			"bs->ltgtype = 0;",
+		),
+	),
 	"AINode_InstaGib": (
 		GAME_AI_DMNET,
 		"int AINode_InstaGib(bot_state_t *bs)",
 		(
 			"targetnum = BotFindInstaGibTarget(bs);",
 			'AIEnter_Observer(bs, "insta gib!: observer");',
+			"BotInstaGibExitCleanup(bs);",
 			'AIEnter_Intermission(bs, "insta gib!: intermission");',
 			'AIEnter_Respawn(bs, "insta gib!: bot dead");',
 			"if (!g_instaGib.integer) {",
@@ -174,6 +187,12 @@ HLIL_CALL_ANCHORS = (
 	"say Well done! Let's get back to",
 	"say Kill me if you can - fragbai",
 	'100133ed  *(arg1 + 0x1304) = sub_10013410',
+	'100134b0      *(eax_9 + 0x250) &= 0xfffeffff',
+	'100134cb      *(*(arg1[2] * 0x384 + &data_104b41dc) + 0x158) = 0',
+	'100134e0      *(*(edx_2 + &data_104b41dc) + 0x15c) = 0',
+	'10013522      *(eax_15 + 0x250) &= 0xfffeffff',
+	'1001353d      *(*(arg1[2] * 0x384 + &data_104b41dc) + 0x158) = 0',
+	'10013552      *(*(edx_6 + &data_104b41dc) + 0x15c) = 0',
 	'10013601      sub_1000d250("insta gib!: found enemy", arg1)',
 	'10013682      arg1[0x5ce] = 0x11c0fbe',
 	'10013878          sub_10024e10(&arg1[0x5ce])',
@@ -277,9 +296,14 @@ def test_qagame_ai_dmnet_tutorial_tail_source_owned_helpers_are_pinned() -> None
 	ai_dmnet_h = _read(GAME_AI_DMNET_H)
 	ai_main_h = _read(GAME_AI_MAIN_H)
 	ai_main = _read(GAME_AI_MAIN)
+	ai_dmnet = _read(GAME_AI_DMNET)
+	game_local = _read(GAME_LOCAL)
+	instagib_node = _extract_function_block(ai_dmnet, "int AINode_InstaGib(bot_state_t *bs)")
 	assert "void BotSetLeadTeamGoal(bot_state_t *bs);" in ai_dmnet_h
 	assert "void AIEnter_InstaGib(bot_state_t *bs);" in ai_dmnet_h
 	assert "int AINode_InstaGib(bot_state_t *bs);" in ai_dmnet_h
+	assert "#define FL_BOT_TRAINING_GODMODE\t\t\t0x00010000" in game_local
+	assert instagib_node.count("BotInstaGibExitCleanup(bs);") == 2
 	for expected in (
 		"#define LTG_FOLLOWING",
 		"#define LTG_TRAINING",
