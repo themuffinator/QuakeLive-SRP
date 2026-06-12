@@ -304,6 +304,19 @@ def test_native_ui_and_cgame_receive_retail_packed_glconfig() -> None:
 		assert import_block.index(f"if ( arg == {syscall_name} ) {{") < import_block.index("args[0] = arg;")
 
 
+def test_native_qagame_host_imports_capture_varargs_explicitly() -> None:
+	sv_game = _read("src/code/server/sv_game.c")
+	import_block = _extract_block(sv_game, "static int QDECL G_Import_Syscall")
+
+	assert "int args[SYSCALL_CONTRACT_MAX_ARGS];" in import_block
+	assert "va_list ap;" in import_block
+	assert "args[0] = arg;" in import_block
+	assert "for (i = 1; i < SYSCALL_CONTRACT_MAX_ARGS; i++)" in import_block
+	assert "args[i] = va_arg(ap, int);" in import_block
+	assert "return SV_GameSystemCallsImpl( args, qfalse );" in import_block
+	assert "SV_GameSystemCallsImpl( &arg, qfalse )" not in import_block
+
+
 def test_native_cgame_import_slot_54_preserves_retail_ad_bridge_callout() -> None:
 	cgame_public = _read("src/code/cgame/cg_public.h")
 	cl_cgame = _read("src/code/client/cl_cgame.c")

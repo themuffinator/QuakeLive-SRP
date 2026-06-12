@@ -239,16 +239,38 @@ static qboolean QL_ClientAuth_InvokeBackend( qboolean (*backend)( const ql_auth_
 
 /*
 =============
-QL_ClientAuth_RequestSteamTicket
+QL_ClientAuth_CancelWebApiTicket
 
-Fetches a Steam auth ticket through the retail client Steam owner for dispatch.
+Cancels a Web API ticket handle after the synchronous auth dispatch finishes.
 =============
 */
-static qboolean QL_ClientAuth_RequestSteamTicket( ql_auth_credential_t *credential, char *logBuffer, size_t logBufferSize ) {
+static void QL_ClientAuth_CancelWebApiTicket( uint32_t *ticketHandle ) {
+	if ( !ticketHandle || *ticketHandle == 0u ) {
+		return;
+	}
+
+	QL_Steamworks_CancelAuthTicket( *ticketHandle );
+	*ticketHandle = 0u;
+}
+
+/*
+=============
+QL_ClientAuth_RequestSteamTicket
+
+Fetches a Steam Web API auth ticket when available, falling back to the retail
+session-ticket owner only on runtimes without the Web API export.
+=============
+*/
+static qboolean QL_ClientAuth_RequestSteamTicket( ql_auth_credential_t *credential, char *logBuffer, size_t logBufferSize, uint32_t *webApiTicketHandle ) {
 	int ticketLength = 0;
+	int steamResult = 0;
+	uint32_t ticketHandle = 0u;
 
 	if ( logBuffer && logBufferSize > 0 ) {
 		logBuffer[0] = '\0';
+	}
+	if ( webApiTicketHandle ) {
+		*webApiTicketHandle = 0u;
 	}
 
 	if ( !credential || credential->kind != QL_AUTH_CREDENTIAL_STEAM ) {
@@ -260,6 +282,25 @@ static qboolean QL_ClientAuth_RequestSteamTicket( ql_auth_credential_t *credenti
 	}
 
 	QL_Steamworks_RunCallbacks();
+
+	if ( QL_Steamworks_HasWebApiAuthTicketAdapter() ) {
+		if ( !QL_Steamworks_RequestWebApiAuthTicket( QL_Steamworks_GetWebApiAuthTicketIdentity(),
+			credential->value, sizeof( credential->value ), &ticketLength, &ticketHandle, &steamResult ) ) {
+			Com_Printf( "[auth] Steam Web API ticket request failed before dispatch (result=%d)\n", steamResult );
+			return qfalse;
+		}
+
+		credential->length = (size_t)ticketLength;
+		if ( webApiTicketHandle ) {
+			*webApiTicketHandle = ticketHandle;
+		}
+
+		if ( logBuffer && logBufferSize > 0 ) {
+			Q_strncpyz( logBuffer, credential->value, logBufferSize );
+		}
+
+		return qtrue;
+	}
 
 	ticketLength = SteamClient_GetAuthSessionTicket( credential->value, (int)sizeof( credential->value ) );
 	if ( ticketLength <= 0 ) {
@@ -310,6 +351,13 @@ qboolean QL_ClientAuth_RequestSteamChallengeTicket( byte *ticketBuffer, int tick
 	}
 
 	if ( !CL_SteamServicesEnabled() ) {
+		return qfalse;
+	}
+
+	if ( !SteamClient_IsInitialized() ) {
+		SteamClient_InitForFilesystem();
+	}
+	if ( !SteamClient_IsInitialized() ) {
 		return qfalse;
 	}
 
@@ -512,6 +560,7 @@ qboolean QL_Auth_ExecuteRequest( const ql_auth_credential_t *credential, ql_auth
 	ql_client_auth_transport_t transport;
 	ql_auth_credential_t steamCredential;
 	char steamHex[QL_AUTH_MAX_CREDENTIAL_STORAGE];
+	uint32_t webApiTicketHandle;
 	char preview[32];
 	qboolean handled;
 
@@ -521,6 +570,7 @@ qboolean QL_Auth_ExecuteRequest( const ql_auth_credential_t *credential, ql_auth
 
 	activeCredential = credential;
 	steamHex[0] = '\0';
+	webApiTicketHandle = 0u;
 	services = QL_GetPlatformServices();
 	authCompiled = services && services->auth.compiled;
 	authInitialised = services && services->auth.initialised;
@@ -541,7 +591,7 @@ qboolean QL_Auth_ExecuteRequest( const ql_auth_credential_t *credential, ql_auth
 		QL_InitAuthCredential( &steamCredential );
 		steamCredential.kind = QL_AUTH_CREDENTIAL_STEAM;
 
-		if ( !QL_ClientAuth_RequestSteamTicket( &steamCredential, steamHex, sizeof( steamHex ) ) ) {
+		if ( !QL_ClientAuth_RequestSteamTicket( &steamCredential, steamHex, sizeof( steamHex ), &webApiTicketHandle ) ) {
 			QL_ClientAuth_LogStage( &transport, "ticket-request-failed", "Steam auth ticket request failed before dispatch" );
 			QL_ClientAuth_SetResponse( response, QL_AUTH_RESULT_ERROR,
 			"Steam ticket failed: %s [%s]",
@@ -587,6 +637,7 @@ qboolean QL_Auth_ExecuteRequest( const ql_auth_credential_t *credential, ql_auth
 		QL_GetOnlineServicesModeLabel(),
 		QL_GetOnlineServicesPolicyLabel() );
 		QL_ClientAuth_LogResponse( &transport, response );
+		QL_ClientAuth_CancelWebApiTicket( &webApiTicketHandle );
 		return qfalse;
 	}
 
@@ -606,6 +657,7 @@ qboolean QL_Auth_ExecuteRequest( const ql_auth_credential_t *credential, ql_auth
 		break;
 	}
 
+	QL_ClientAuth_CancelWebApiTicket( &webApiTicketHandle );
 	QL_ClientAuth_LogResponse( &transport, response );
 	return handled;
 }

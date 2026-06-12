@@ -245,6 +245,16 @@ def steamworks_harness(request: pytest.FixtureRequest, tmp_path_factory: pytest.
         ctypes.POINTER(ctypes.c_uint32),
     ]
     lib.QLR_Steamworks_Request.restype = ctypes.c_int
+    lib.QLR_Steamworks_HasWebApiAuthTicketAdapter.argtypes = []
+    lib.QLR_Steamworks_HasWebApiAuthTicketAdapter.restype = ctypes.c_int
+    lib.QLR_Steamworks_RequestWebApi.argtypes = [
+        ctypes.c_char_p,
+        ctypes.c_size_t,
+        ctypes.POINTER(ctypes.c_int),
+        ctypes.POINTER(ctypes.c_uint32),
+        ctypes.POINTER(ctypes.c_int),
+    ]
+    lib.QLR_Steamworks_RequestWebApi.restype = ctypes.c_int
     lib.QLR_Steamworks_CancelTicket.argtypes = [ctypes.c_uint32]
     lib.QLR_Steamworks_CancelTicket.restype = ctypes.c_int
 
@@ -896,12 +906,23 @@ def steamworks_harness(request: pytest.FixtureRequest, tmp_path_factory: pytest.
 
         lib.QLR_SteamworksMock_SetTicket.argtypes = [ctypes.c_char_p, ctypes.c_uint32, ctypes.c_uint32]
         lib.QLR_SteamworksMock_SetTicket.restype = None
+        lib.QLR_SteamworksMock_SetWebApiTicket.argtypes = [
+            ctypes.c_char_p,
+            ctypes.c_uint32,
+            ctypes.c_uint32,
+            ctypes.c_int,
+        ]
+        lib.QLR_SteamworksMock_SetWebApiTicket.restype = None
         lib.QLR_SteamworksMock_GetCancelledTicketHandle.argtypes = []
         lib.QLR_SteamworksMock_GetCancelledTicketHandle.restype = ctypes.c_uint32
         lib.QLR_SteamworksMock_GetCancelAuthTicketCalls.argtypes = []
         lib.QLR_SteamworksMock_GetCancelAuthTicketCalls.restype = ctypes.c_int
         lib.QLR_SteamworksMock_GetUserLoggedOnCalls.argtypes = []
         lib.QLR_SteamworksMock_GetUserLoggedOnCalls.restype = ctypes.c_int
+        lib.QLR_SteamworksMock_GetWebApiTicketCalls.argtypes = []
+        lib.QLR_SteamworksMock_GetWebApiTicketCalls.restype = ctypes.c_int
+        lib.QLR_SteamworksMock_GetWebApiTicketIdentity.argtypes = []
+        lib.QLR_SteamworksMock_GetWebApiTicketIdentity.restype = ctypes.c_char_p
 
         lib.QLR_SteamworksMock_SetAuthResult.argtypes = [ctypes.c_int]
         lib.QLR_SteamworksMock_SetAuthResult.restype = None
@@ -1898,7 +1919,9 @@ def test_validate_maps_auth_results(steamworks_harness: tuple[ctypes.CDLL, bool]
     assert "runtime" in runtime_missing.message.decode().lower()
 
 
-def test_auth_ticket_requests_require_logged_on_steam_user(steamworks_harness: tuple[ctypes.CDLL, bool]) -> None:
+def test_auth_ticket_request_attempts_session_ticket_when_logged_on_probe_is_false(
+    steamworks_harness: tuple[ctypes.CDLL, bool],
+) -> None:
     lib, enabled = steamworks_harness
     ticket_buffer = ctypes.create_string_buffer(TICKET_BUFFER)
     ticket_length = ctypes.c_int(-1)
@@ -1921,27 +1944,88 @@ def test_auth_ticket_requests_require_logged_on_steam_user(steamworks_harness: t
     assert lib.QLR_SteamworksMock_GetUserLoggedOnCalls() == 1
 
     lib.QLR_SteamworksMock_SetUserLoggedOn(0)
-    assert not lib.QLR_Steamworks_Request(
+    assert lib.QLR_Steamworks_Request(
         ticket_buffer,
         ctypes.sizeof(ticket_buffer),
         ctypes.byref(ticket_length),
         ctypes.byref(ticket_handle),
     )
-    assert ticket_buffer.value == b""
-    assert ticket_length.value == 0
-    assert ticket_handle.value == 0
-    assert lib.QLR_SteamworksMock_GetUserLoggedOnCalls() == 2
+    assert ticket_buffer.value == b"12345678"
+    assert ticket_length.value == 8
+    assert ticket_handle.value == 1
+    assert lib.QLR_SteamworksMock_GetUserLoggedOnCalls() == 1
 
     response = AuthResponse()
     assert lib.QLR_Steamworks_Validate(b"12345678", ctypes.byref(response))
     assert response.result == QL_AUTH_RESULT_ERROR
     assert response.outcome == QL_AUTH_OUTCOME_FAILURE
     assert "not logged on" in response.message.decode().lower()
+    assert lib.QLR_SteamworksMock_GetUserLoggedOnCalls() == 2
+
+
+def test_web_api_auth_ticket_adapter_uses_callback_ticket_and_identity(
+    steamworks_harness: tuple[ctypes.CDLL, bool],
+) -> None:
+    lib, enabled = steamworks_harness
+    ticket_buffer = ctypes.create_string_buffer(TICKET_BUFFER)
+    ticket_length = ctypes.c_int(-1)
+    ticket_handle = ctypes.c_uint32(0xFFFFFFFF)
+    steam_result = ctypes.c_int(-1)
+
+    if not enabled:
+        assert not lib.QLR_Steamworks_HasWebApiAuthTicketAdapter()
+        assert not lib.QLR_Steamworks_RequestWebApi(
+            ticket_buffer,
+            ctypes.sizeof(ticket_buffer),
+            ctypes.byref(ticket_length),
+            ctypes.byref(ticket_handle),
+            ctypes.byref(steam_result),
+        )
+        return
+
+    lib.QLR_SteamworksMock_Reset()
+    lib.QLR_SteamworksMock_PrimeState()
+
+    assert lib.QLR_Steamworks_HasWebApiAuthTicketAdapter()
+    assert lib.QLR_Steamworks_RequestWebApi(
+        ticket_buffer,
+        ctypes.sizeof(ticket_buffer),
+        ctypes.byref(ticket_length),
+        ctypes.byref(ticket_handle),
+        ctypes.byref(steam_result),
+    )
+    assert ticket_buffer.value == b"abcdef"
+    assert ticket_length.value == 6
+    assert ticket_handle.value == 41
+    assert steam_result.value == 1
+    assert lib.QLR_SteamworksMock_GetWebApiTicketCalls() == 1
+    assert lib.QLR_SteamworksMock_GetWebApiTicketIdentity() == b"quake-live-srp-auth"
+
+    lib.QLR_Steamworks_CancelTicket(ticket_handle.value)
+    assert lib.QLR_SteamworksMock_GetCancelledTicketHandle() == 41
+
+    lib.QLR_SteamworksMock_SetUserLoggedOn(0)
+    ticket_buffer.value = b"stale"
+    ticket_length.value = -1
+    ticket_handle.value = 0xFFFFFFFF
+    steam_result.value = -1
+
+    assert not lib.QLR_Steamworks_RequestWebApi(
+        ticket_buffer,
+        ctypes.sizeof(ticket_buffer),
+        ctypes.byref(ticket_length),
+        ctypes.byref(ticket_handle),
+        ctypes.byref(steam_result),
+    )
+    assert ticket_buffer.value == b""
+    assert ticket_length.value == 0
+    assert ticket_handle.value == 0
+    assert steam_result.value == 0
 
 
 @pytest.mark.parametrize(
-    ("begin_result", "expected_result", "expected_outcome", "message_fragment"),
-    [
+	("begin_result", "expected_result", "expected_outcome", "message_fragment"),
+	[
         (BEGIN_AUTH_DUPLICATE_REQUEST, QL_AUTH_RESULT_PENDING, QL_AUTH_OUTCOME_RETRY, "already processing"),
         (BEGIN_AUTH_INVALID_VERSION, QL_AUTH_RESULT_DENIED, QL_AUTH_OUTCOME_FAILURE, "version mismatch"),
         (BEGIN_AUTH_GAME_MISMATCH, QL_AUTH_RESULT_DENIED, QL_AUTH_OUTCOME_FAILURE, "another game"),

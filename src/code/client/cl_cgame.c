@@ -8346,6 +8346,7 @@ static int CL_CgameSystemCallsImpl( int *args, qboolean logContract ) {
 		return re.RegisterShaderNoMip( VMA(1) );
 	case CG_R_REGISTERFONT:
 		CL_RegisterFont( VMA(1), args[2], VMA(3) );
+		return 0;
 	case CG_R_CLEARSCENE:
 		re.ClearScene();
 		return 0;

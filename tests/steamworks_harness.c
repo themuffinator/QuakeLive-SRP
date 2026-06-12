@@ -16,6 +16,8 @@
 #if QL_BUILD_STEAMWORKS
 
 #define QLR_TICKET_BUFFER 1024
+#define QLR_WEB_API_TICKET_BUFFER QL_STEAM_WEB_API_AUTH_TICKET_MAX_LENGTH
+#define QLR_PENDING_CALLBACK_BUFFER ( QL_STEAM_WEB_API_AUTH_TICKET_MAX_LENGTH + 16 )
 #define QLR_AVATAR_BUFFER ( 256 * 256 * 4 )
 #define QLR_P2P_PACKET_BUFFER 512
 #define QLR_VOICE_BUFFER 512
@@ -35,6 +37,7 @@
 #define QLR_MAX_PENDING_CALLBACKS 32
 #define QLR_MAX_SUBSCRIBED_ITEMS 32
 #define QLR_STEAM_CALLBACK_FLAG_GAMESERVER 0x02
+#define QLR_STEAM_CALLBACK_GET_TICKET_FOR_WEB_API_RESPONSE 0xa8
 #define QLR_STEAM_UGC_DETAILS_TITLE_OFFSET 0x18
 #define QLR_STEAM_UGC_DETAILS_DESCRIPTION_OFFSET 0x99
 
@@ -71,8 +74,15 @@ typedef struct {
 	SteamAPICall_t callHandle;
 	qboolean ioFailure;
 	uint32_t payloadSize;
-	uint8_t payload[512];
+	uint8_t payload[QLR_PENDING_CALLBACK_BUFFER];
 } qlr_pending_callback_t;
+
+typedef struct {
+	HAuthTicket authTicket;
+	int result;
+	uint32_t ticketLength;
+	uint8_t ticket[QL_STEAM_WEB_API_AUTH_TICKET_MAX_LENGTH];
+} qlr_steam_get_ticket_for_web_api_response_raw_t;
 
 typedef struct {
 	uint16_t connectionPort;
@@ -109,6 +119,12 @@ typedef struct {
 	uint8_t ticket[QLR_TICKET_BUFFER];
 	uint32_t ticket_length;
 	HAuthTicket ticket_handle;
+	uint8_t web_api_ticket[QLR_WEB_API_TICKET_BUFFER];
+	uint32_t web_api_ticket_length;
+	HAuthTicket web_api_ticket_handle;
+	int web_api_ticket_result;
+	int web_api_ticket_calls;
+	char web_api_ticket_identity[128];
 	HAuthTicket cancelled_ticket_handle;
 	int cancel_auth_ticket_calls;
 	uint32_t app_id;
@@ -470,6 +486,12 @@ static qlr_steamworks_mock_state_t qlr_mock_state = {
 	.ticket = { 0x12, 0x34, 0x56, 0x78 },
 	.ticket_length = 4,
 	.ticket_handle = 1,
+	.web_api_ticket = { 0xAB, 0xCD, 0xEF },
+	.web_api_ticket_length = 3,
+	.web_api_ticket_handle = 41,
+	.web_api_ticket_result = 1,
+	.web_api_ticket_calls = 0,
+	.web_api_ticket_identity = "",
 	.cancelled_ticket_handle = 0,
 	.cancel_auth_ticket_calls = 0,
 	.app_id = 0x54100,
@@ -884,6 +906,8 @@ static uint32_t QLR_FASTCALL QLR_SteamUser_GetVoiceOptimalSampleRate( void *self
 
 HAuthTicket QLR_SteamAPI_GetAuthSessionTicket( void *user, void *ticket, int ticket_size, uint32_t *length );
 
+HAuthTicket QLR_SteamAPI_GetAuthTicketForWebApi( void *user, const char *identity );
+
 EBeginAuthSessionResult QLR_SteamAPI_BeginAuthSession( void *user, const void *ticket, int length, CSteamID steamId );
 
 void QLR_SteamAPI_CancelAuthTicket( void *user, HAuthTicket handle );
@@ -893,6 +917,8 @@ void QLR_SteamAPI_EndAuthSession( void *user, CSteamID steamId );
 CSteamID QLR_SteamAPI_GetSteamID( void *user );
 
 void Q_strncpyz( char *dest, const char *src, int destsize );
+
+static qboolean QLR_SteamworksMock_QueueCallback( qboolean callResult, qboolean gameServer, int callbackId, SteamAPICall_t callHandle, const void *payload, uint32_t payloadSize, qboolean ioFailure );
 
 /*
 =============
@@ -974,6 +1000,12 @@ QLR_EXPORT void QLR_SteamworksMock_Reset( void ) {
 	memcpy( qlr_mock_state.ticket, (uint8_t[]){ 0x12, 0x34, 0x56, 0x78 }, 4 );
 	qlr_mock_state.ticket_length = 4;
 	qlr_mock_state.ticket_handle = 1;
+	memcpy( qlr_mock_state.web_api_ticket, (uint8_t[]){ 0xAB, 0xCD, 0xEF }, 3 );
+	qlr_mock_state.web_api_ticket_length = 3;
+	qlr_mock_state.web_api_ticket_handle = 41;
+	qlr_mock_state.web_api_ticket_result = 1;
+	qlr_mock_state.web_api_ticket_calls = 0;
+	qlr_mock_state.web_api_ticket_identity[0] = '\0';
 	qlr_mock_state.cancelled_ticket_handle = 0;
 	qlr_mock_state.cancel_auth_ticket_calls = 0;
 	qlr_mock_state.app_id = 0x54100;
@@ -1374,6 +1406,23 @@ QLR_EXPORT void QLR_SteamworksMock_SetTicket( const uint8_t *ticket, uint32_t le
 	}
 
 	qlr_mock_state.ticket_handle = handle;
+}
+
+/*
+=============
+QLR_SteamworksMock_SetWebApiTicket
+
+Override the callback ticket returned by GetAuthTicketForWebApi.
+=============
+*/
+QLR_EXPORT void QLR_SteamworksMock_SetWebApiTicket( const uint8_t *ticket, uint32_t length, HAuthTicket handle, int result ) {
+	if ( ticket && length > 0 && length <= QLR_WEB_API_TICKET_BUFFER ) {
+		memcpy( qlr_mock_state.web_api_ticket, ticket, length );
+		qlr_mock_state.web_api_ticket_length = length;
+	}
+
+	qlr_mock_state.web_api_ticket_handle = handle;
+	qlr_mock_state.web_api_ticket_result = result;
 }
 
 /*
@@ -2413,6 +2462,24 @@ QLR_SteamworksMock_GetUserLoggedOnCalls
 */
 QLR_EXPORT int QLR_SteamworksMock_GetUserLoggedOnCalls( void ) {
 	return qlr_mock_state.user_logged_on_calls;
+}
+
+/*
+=============
+QLR_SteamworksMock_GetWebApiTicketCalls
+=============
+*/
+QLR_EXPORT int QLR_SteamworksMock_GetWebApiTicketCalls( void ) {
+	return qlr_mock_state.web_api_ticket_calls;
+}
+
+/*
+=============
+QLR_SteamworksMock_GetWebApiTicketIdentity
+=============
+*/
+QLR_EXPORT const char *QLR_SteamworksMock_GetWebApiTicketIdentity( void ) {
+	return qlr_mock_state.web_api_ticket_identity;
 }
 
 /*
@@ -4141,6 +4208,10 @@ void *dlsym( void *handle, const char *symbol ) {
 
 	if ( strcmp( symbol, "SteamAPI_ISteamUser_GetAuthSessionTicket" ) == 0 ) {
 		return QLR_SteamAPI_GetAuthSessionTicket;
+	}
+
+	if ( strcmp( symbol, "SteamAPI_ISteamUser_GetAuthTicketForWebApi" ) == 0 ) {
+		return QLR_SteamAPI_GetAuthTicketForWebApi;
 	}
 
 	if ( strcmp( symbol, "SteamAPI_ISteamUser_BeginAuthSession" ) == 0 ) {
@@ -6745,6 +6816,33 @@ HAuthTicket QLR_SteamAPI_GetAuthSessionTicket( void *user, void *ticket, int tic
 
 /*
 =============
+QLR_SteamAPI_GetAuthTicketForWebApi
+=============
+*/
+HAuthTicket QLR_SteamAPI_GetAuthTicketForWebApi( void *user, const char *identity ) {
+	qlr_steam_get_ticket_for_web_api_response_raw_t event;
+
+	(void)user;
+
+	qlr_mock_state.web_api_ticket_calls++;
+	Q_strncpyz( qlr_mock_state.web_api_ticket_identity, identity ? identity : "", sizeof( qlr_mock_state.web_api_ticket_identity ) );
+
+	if ( qlr_mock_state.web_api_ticket_handle == 0 || qlr_mock_state.web_api_ticket_length == 0u ) {
+		return 0;
+	}
+
+	memset( &event, 0, sizeof( event ) );
+	event.authTicket = qlr_mock_state.web_api_ticket_handle;
+	event.result = qlr_mock_state.web_api_ticket_result;
+	event.ticketLength = qlr_mock_state.web_api_ticket_length;
+	memcpy( event.ticket, qlr_mock_state.web_api_ticket, qlr_mock_state.web_api_ticket_length );
+
+	QLR_SteamworksMock_QueueCallback( qfalse, qfalse, QLR_STEAM_CALLBACK_GET_TICKET_FOR_WEB_API_RESPONSE, 0ull, &event, sizeof( event ), qfalse );
+	return qlr_mock_state.web_api_ticket_handle;
+}
+
+/*
+=============
 QLR_SteamAPI_BeginAuthSession
 =============
 */
@@ -6838,10 +6936,12 @@ QLR_EXPORT void QLR_SteamworksMock_PrimeState( void ) {
 	state.SteamGameServer_RunCallbacks = QLR_SteamAPI_SteamGameServerRunCallbacks;
 	state.SteamGameServerNetworking = QLR_SteamAPI_SteamGameServerNetworking;
 	state.GetAuthSessionTicket = QLR_SteamAPI_GetAuthSessionTicket;
+	state.GetAuthTicketForWebApi = QLR_SteamAPI_GetAuthTicketForWebApi;
 	state.BeginAuthSession = QLR_SteamAPI_BeginAuthSession;
 	state.CancelAuthTicket = QLR_SteamAPI_CancelAuthTicket;
 	state.EndAuthSession = QLR_SteamAPI_EndAuthSession;
 	state.GetSteamID = QLR_SteamAPI_GetSteamID;
+	memset( &state.clientCallbacks, 0, sizeof( state.clientCallbacks ) );
 	QLR_SteamworksMock_ClearCallbackState();
 }
 
@@ -8059,6 +8159,51 @@ QLR_EXPORT qboolean QLR_Steamworks_Request( char *ticketBuffer, size_t ticketBuf
 	}
 
 	return QL_Steamworks_RequestAuthTicket( ticketBuffer, ticketBufferSize, ticketLength, ticketHandle );
+}
+
+/*
+=============
+QLR_Steamworks_HasWebApiAuthTicketAdapter
+=============
+*/
+QLR_EXPORT qboolean QLR_Steamworks_HasWebApiAuthTicketAdapter( void ) {
+	if ( !qlr_mock_state.library_available || !qlr_mock_state.init_result ) {
+		return qfalse;
+	}
+
+	return QL_Steamworks_HasWebApiAuthTicketAdapter();
+}
+
+/*
+=============
+QLR_Steamworks_RequestWebApi
+
+Wrapper exposing QL_Steamworks_RequestWebApiAuthTicket for ctypes.
+=============
+*/
+QLR_EXPORT qboolean QLR_Steamworks_RequestWebApi( char *ticketBuffer, size_t ticketBufferSize, int *ticketLength, uint32_t *ticketHandle, int *steamResult ) {
+	if ( !qlr_mock_state.library_available || !qlr_mock_state.init_result ) {
+		if ( ticketBuffer && ticketBufferSize > 0 ) {
+			ticketBuffer[0] = '\0';
+		}
+
+		if ( ticketLength ) {
+			*ticketLength = 0;
+		}
+
+		if ( ticketHandle ) {
+			*ticketHandle = 0;
+		}
+
+		if ( steamResult ) {
+			*steamResult = 0;
+		}
+
+		return qfalse;
+	}
+
+	return QL_Steamworks_RequestWebApiAuthTicket( QL_Steamworks_GetWebApiAuthTicketIdentity(),
+		ticketBuffer, ticketBufferSize, ticketLength, ticketHandle, steamResult );
 }
 
 /*
@@ -9378,6 +9523,25 @@ QLR_EXPORT qboolean QLR_Steamworks_Request( char *ticketBuffer, size_t ticketBuf
 	(void)ticketLength;
 	(void)ticketHandle;
 	return QL_Steamworks_RequestAuthTicket( ticketBuffer, ticketBufferSize, ticketLength, ticketHandle );
+}
+
+/*
+=============
+QLR_Steamworks_HasWebApiAuthTicketAdapter
+=============
+*/
+QLR_EXPORT qboolean QLR_Steamworks_HasWebApiAuthTicketAdapter( void ) {
+	return qfalse;
+}
+
+/*
+=============
+QLR_Steamworks_RequestWebApi
+=============
+*/
+QLR_EXPORT qboolean QLR_Steamworks_RequestWebApi( char *ticketBuffer, size_t ticketBufferSize, int *ticketLength, uint32_t *ticketHandle, int *steamResult ) {
+	return QL_Steamworks_RequestWebApiAuthTicket( QL_Steamworks_GetWebApiAuthTicketIdentity(),
+		ticketBuffer, ticketBufferSize, ticketLength, ticketHandle, steamResult );
 }
 
 /*

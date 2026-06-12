@@ -150,6 +150,39 @@ function Sync-AwesomiumRuntime {
 	}
 }
 
+function Sync-SteamworksRuntime {
+	param(
+		[string]$SourceRoot,
+		[string]$DestinationRoot
+	)
+
+	$requiredFiles = @(
+		'steam_api.dll',
+		'steam_appid.txt'
+	)
+
+	foreach ($fileName in $requiredFiles) {
+		$sourcePath = Join-Path $SourceRoot $fileName
+		$destinationPath = Join-Path $DestinationRoot $fileName
+
+		if (-not (Test-Path -LiteralPath $sourcePath -PathType Leaf)) {
+			throw "Steamworks runtime dependency was not found: $sourcePath"
+		}
+
+		$shouldCopy = $true
+		if (Test-Path -LiteralPath $destinationPath -PathType Leaf) {
+			$sourceInfo = Get-Item -LiteralPath $sourcePath
+			$destinationInfo = Get-Item -LiteralPath $destinationPath
+			$shouldCopy = $sourceInfo.Length -ne $destinationInfo.Length -or
+				$sourceInfo.LastWriteTimeUtc -gt $destinationInfo.LastWriteTimeUtc
+		}
+
+		if ($shouldCopy) {
+			Copy-Item -LiteralPath $sourcePath -Destination $destinationPath -Force
+		}
+	}
+}
+
 function Read-BuildSettings {
 	param([string]$Path)
 
@@ -201,6 +234,11 @@ foreach ($staleUiPackage in @(
 
 Sync-LaunchModuleArtifact -ModuleName 'cgamex86'
 Sync-LaunchModuleArtifact -ModuleName 'qagamex86'
+
+$launchBuildSettings = Read-BuildSettings -Path (Join-Path $runtimeBinDir 'ql_build_settings.txt')
+if ($launchBuildSettings.ContainsKey('QLBuildSteamworks') -and $launchBuildSettings['QLBuildSteamworks'] -eq '1') {
+	Sync-SteamworksRuntime -SourceRoot $steamBasePath -DestinationRoot $runtimeBinDir
+}
 
 if ($EnableAwesomium) {
 	Assert-AwesomiumEnabledBuild -RuntimeBinDir $runtimeBinDir

@@ -7810,7 +7810,15 @@ static void CL_SendChallengeRequest( void ) {
 	}
 
 	if ( NET_ProtocolSupportsPlatformAuth() && !Sys_IsLANAddress( clc.serverAddress ) ) {
-		Com_DPrintf( "Steam challenge auth unavailable; falling back to bare %s\n", NET_GetChallengeRequestCommand() );
+		if ( !CL_SteamServicesEnabled() ) {
+			Com_DPrintf( "Steam challenge auth unavailable: online services disabled by build/runtime policy (%s [%s]); falling back to bare %s\n",
+				QL_GetOnlineServicesModeLabel(), QL_GetOnlineServicesPolicyLabel(), NET_GetChallengeRequestCommand() );
+		} else if ( !SteamClient_IsInitialized() ) {
+			Com_DPrintf( "Steam challenge auth unavailable: Steam client failed to initialise; falling back to bare %s\n",
+				NET_GetChallengeRequestCommand() );
+		} else {
+			Com_DPrintf( "Steam challenge auth unavailable; falling back to bare %s\n", NET_GetChallengeRequestCommand() );
+		}
 	}
 
 	NET_OutOfBandPrint( NS_CLIENT, clc.serverAddress, "%s", NET_GetChallengeRequestCommand() );

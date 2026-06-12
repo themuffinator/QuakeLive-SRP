@@ -544,6 +544,12 @@ const char *QL_Steamworks_GetAuthTicketModernGapLabel( void );
 
 qboolean QL_Steamworks_IsUserLoggedOn( void );
 
+const char *QL_Steamworks_GetWebApiAuthTicketIdentity( void );
+
+qboolean QL_Steamworks_HasWebApiAuthTicketAdapter( void );
+
+qboolean QL_Steamworks_RequestWebApiAuthTicket( const char *identity, char *ticketBuffer, size_t ticketBufferSize, int *ticketLength, uint32_t *ticketHandle, int *steamResult );
+
 qboolean QL_Steamworks_RequestAuthTicket( char *ticketBuffer, size_t ticketBufferSize, int *ticketLength, uint32_t *ticketHandle );
 
 qboolean QL_Steamworks_CancelAuthTicket( uint32_t ticketHandle );
@@ -1437,6 +1443,39 @@ QL_Steamworks_IsUserLoggedOn
 =============
 */
 static inline qboolean QL_Steamworks_IsUserLoggedOn( void ) {
+	return qfalse;
+}
+
+/*
+=============
+QL_Steamworks_GetWebApiAuthTicketIdentity
+=============
+*/
+static inline const char *QL_Steamworks_GetWebApiAuthTicketIdentity( void ) {
+	return "quake-live-srp-auth";
+}
+
+/*
+=============
+QL_Steamworks_HasWebApiAuthTicketAdapter
+=============
+*/
+static inline qboolean QL_Steamworks_HasWebApiAuthTicketAdapter( void ) {
+	return qfalse;
+}
+
+/*
+=============
+QL_Steamworks_RequestWebApiAuthTicket
+=============
+*/
+static inline qboolean QL_Steamworks_RequestWebApiAuthTicket( const char *identity, char *ticketBuffer, size_t ticketBufferSize, int *ticketLength, uint32_t *ticketHandle, int *steamResult ) {
+	(void)identity;
+	(void)ticketBuffer;
+	(void)ticketBufferSize;
+	(void)ticketLength;
+	(void)ticketHandle;
+	(void)steamResult;
 	return qfalse;
 }
 

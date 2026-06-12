@@ -109,11 +109,12 @@ pwsh tools\ci\verify-awesomium-process-parity.ps1
 ```
 
 The VS Code default `Build` task and the `Launch Debug Awesomium` task both use
-the local online-services launch lane. That build enables the client's dynamic
-Awesomium loader with
-`QLRequireAwesomiumSdk=0`, writes
+the local online-services launch lane. That build enables the native Steamworks
+compatibility path alongside the open adapter, enables the client's dynamic
+Awesomium loader with `QLRequireAwesomiumSdk=0`, writes
 `build\win32\<Configuration>\bin\ql_build_settings.txt`, and stages the retail
-Awesomium runtime payload from the Steam install root. The C/MSBuild project
+Steamworks (`steam_api.dll` and `steam_appid.txt`) and Awesomium runtime payloads
+from the Steam install root. The C/MSBuild project
 properties still default Debug builds to `QLBuildOnlineServices=0`; the VS Code
 task is an explicit local opt-in, while Release builds opt in by default. The
 `Launch Quake Live` debugger profile does not use a

@@ -1103,7 +1103,6 @@ G_Import_Syscall
 ====================
 */
 static int QDECL G_Import_Syscall( int arg, ... ) {
-#if ((defined __linux__) && (defined __powerpc__))
 	int args[SYSCALL_CONTRACT_MAX_ARGS];
 	int i;
 	va_list ap;
@@ -1117,9 +1116,6 @@ static int QDECL G_Import_Syscall( int arg, ... ) {
 	va_end(ap);
 
 	return SV_GameSystemCallsImpl( args, qfalse );
-#else
-	return SV_GameSystemCallsImpl( &arg, qfalse );
-#endif
 }
 
 #include "ql_game_imports.inc"

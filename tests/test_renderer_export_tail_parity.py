@@ -79,6 +79,13 @@ def test_client_font_registration_uses_compatibility_lane() -> None:
 	assert "RE_MeasureScaledText( text, end, fontHandle, scale, maxX, &width, &height, outLeft );" in cl_cgame
 	assert "re.RegisterFont(" not in cl_ui
 	assert "re.RegisterFont(" not in cl_cgame
+	assert cl_cgame.index("case CG_R_REGISTERFONT:") < cl_cgame.index("CL_RegisterFont( VMA(1), args[2], VMA(3) );")
+	assert cl_cgame.index("CL_RegisterFont( VMA(1), args[2], VMA(3) );") < cl_cgame.index("case CG_R_CLEARSCENE:")
+	register_font_block = cl_cgame[
+		cl_cgame.index("case CG_R_REGISTERFONT:"):
+		cl_cgame.index("case CG_R_CLEARSCENE:")
+	]
+	assert "return 0;" in register_font_block
 
 	assert "ql_ui_imports[UI_QL_IMPORT_R_REGISTERFONT] = (ql_import_f)QL_UI_trap_R_RegisterFont;" in cl_ui
 	assert "ql_cgame_imports[CG_QL_IMPORT_R_REGISTERFONT] = (ql_import_f)QL_CG_trap_R_RegisterFont;" in cl_cgame

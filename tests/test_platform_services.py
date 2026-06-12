@@ -355,6 +355,39 @@ return "missing GetAuthTicketForWebApi adapter";
 
 /*
 =============
+QL_Steamworks_GetWebApiAuthTicketIdentity
+=============
+*/
+const char *QL_Steamworks_GetWebApiAuthTicketIdentity( void ) {
+return "quake-live-srp-auth";
+}
+
+/*
+=============
+QL_Steamworks_HasWebApiAuthTicketAdapter
+=============
+*/
+qboolean QL_Steamworks_HasWebApiAuthTicketAdapter( void ) {
+return qfalse;
+}
+
+/*
+=============
+QL_Steamworks_RequestWebApiAuthTicket
+=============
+*/
+qboolean QL_Steamworks_RequestWebApiAuthTicket( const char *identity, char *ticketBuffer, size_t ticketBufferSize, int *ticketLength, uint32_t *ticketHandle, int *steamResult ) {
+(void)identity;
+(void)ticketBuffer;
+(void)ticketBufferSize;
+(void)ticketLength;
+(void)ticketHandle;
+(void)steamResult;
+return qfalse;
+}
+
+/*
+=============
 QL_Steamworks_GetUserSteamID
 =============
 */
@@ -7430,12 +7463,12 @@ def test_awesomium_launch_task_builds_with_in_process_overlay_provider() -> None
     default_args = default_build_task["args"]
 
     assert default_args[default_args.index("-OnlineServices") + 1] == "1"
-    assert default_args[default_args.index("-Steamworks") + 1] == "0"
+    assert default_args[default_args.index("-Steamworks") + 1] == "1"
     assert default_args[default_args.index("-OpenSteam") + 1] == "1"
     assert default_args[default_args.index("-RequireAwesomiumSdk") + 1] == "0"
     assert default_args[default_args.index("-Targets") + 1] == "Splines;botlib;cgame;game;renderer;ui;qagamex86;cgamex86;quakelive_steam"
     assert args[args.index("-OnlineServices") + 1] == "1"
-    assert args[args.index("-Steamworks") + 1] == "0"
+    assert args[args.index("-Steamworks") + 1] == "1"
     assert args[args.index("-OpenSteam") + 1] == "1"
     assert args[args.index("-RequireAwesomiumSdk") + 1] == "0"
     assert args[args.index("-Targets") + 1] == "Splines;botlib;cgame;game;renderer;ui;qagamex86;cgamex86;quakelive_steam"
@@ -7446,6 +7479,7 @@ def test_awesomium_launch_task_builds_with_in_process_overlay_provider() -> None
     assert awesomium_launch["env"]["QL_DISABLE_AWESOMIUM"] == "0"
     assert "ql_build_settings.txt" in build_script
     assert "QLBuildOnlineServices=$onlineServicesSetting" in build_script
+    assert "QLBuildSteamworks=$steamworksSetting" in build_script
     assert "QLRequireAwesomiumSdk=$requireAwesomiumSdkSetting" in build_script
     assert '"/p:QLRequireAwesomiumSdk=$RequireAwesomiumSdk"' in build_script
     assert "$projectPlatformNormalized = 'Win32'" in build_script
@@ -7453,12 +7487,22 @@ def test_awesomium_launch_task_builds_with_in_process_overlay_provider() -> None
     assert "'cgamex86' = 'cgame\\cgamex86.vcxproj'" in build_script
     assert "Resolved MSBuild project targets:" in build_script
     assert "& $msbuildPath $target.Path @projectMsbuildArgs" in build_script
+    assert "function Sync-SteamworksRuntime" in build_script
+    assert "'steam_api.dll'" in build_script
+    assert "'steam_appid.txt'" in build_script
     assert "function Sync-AwesomiumRuntime" in build_script
     assert "$steamBasePath = $env:QLR_STEAM_BASEPATH" in build_script
     assert "if ($onlineServicesSetting -eq '1')" in build_script
+    assert "if ($steamworksSetting -eq '1')" in build_script
+    assert "Sync-SteamworksRuntime -SourceRoot $steamBasePath -DestinationRoot $runtimeBinDir" in build_script
     assert "Sync-AwesomiumRuntime -SourceRoot $steamBasePath -DestinationRoot $runtimeBinDir" in build_script
+    assert "function Sync-SteamworksRuntime" in launch_script
     assert "function Sync-AwesomiumRuntime" in launch_script
     assert "ql_build_settings.txt" in launch_script
+    assert "'steam_api.dll'" in launch_script
+    assert "'steam_appid.txt'" in launch_script
+    assert "Read-BuildSettings -Path (Join-Path $runtimeBinDir 'ql_build_settings.txt')" in launch_script
+    assert "Sync-SteamworksRuntime -SourceRoot $steamBasePath -DestinationRoot $runtimeBinDir" in launch_script
     assert "Assert-AwesomiumEnabledBuild -RuntimeBinDir $runtimeBinDir" in launch_script
     assert "'+set', 'qlr_requireAwesomium', '1'" in launch_script
     assert "'awesomium.dll'" in launch_script
@@ -7498,7 +7542,7 @@ def test_client_auth_ticket_lifetime_reconstructs_retail_disconnect_owner() -> N
     )
     request_ticket_block = _extract_function_block(
         ql_auth,
-        "static qboolean QL_ClientAuth_RequestSteamTicket( ql_auth_credential_t *credential, char *logBuffer, size_t logBufferSize ) {",
+        "static qboolean QL_ClientAuth_RequestSteamTicket( ql_auth_credential_t *credential, char *logBuffer, size_t logBufferSize, uint32_t *webApiTicketHandle ) {",
     )
     challenge_ticket_block = _extract_function_block(
         ql_auth,
@@ -7541,8 +7585,8 @@ def test_client_auth_ticket_lifetime_reconstructs_retail_disconnect_owner() -> N
     assert "const char *QL_Steamworks_GetAuthTicketModernGapLabel( void );" in steamworks_header
     assert "int SteamClient_GetAuthSessionTicket( char *ticketBuffer, int ticketBufferSize );" in qcommon_h
     assert "qboolean SteamClient_CancelAuthTicket( void );" in qcommon_h
-    assert 'return "retail GetAuthSessionTicket";' in api_label_block
-    assert 'return "missing GetAuthTicketForWebApi adapter";' in modern_gap_label_block
+    assert 'return QL_Steamworks_HasWebApiAuthTicketAdapter() ? "GetAuthTicketForWebApi" : "retail GetAuthSessionTicket";' in api_label_block
+    assert 'return QL_Steamworks_HasWebApiAuthTicketAdapter() ? "GetAuthTicketForWebApi adapter available" : "missing GetAuthTicketForWebApi adapter";' in modern_gap_label_block
     assert "if ( ticketHandle == 0 || !state.initialised || !state.SteamUser || !state.CancelAuthTicket ) {" in cancel_platform_block
     assert "state.CancelAuthTicket( user, (HAuthTicket)ticketHandle );" in cancel_platform_block
     assert "static uint32_t cl_steamAuthTicketHandle;" in cl_main
@@ -7555,6 +7599,8 @@ def test_client_auth_ticket_lifetime_reconstructs_retail_disconnect_owner() -> N
     assert "cl_steamAuthTicketHandle = ticketHandle;" in steam_ticket_block
     assert "cancelled = QL_Steamworks_CancelAuthTicket( cl_steamAuthTicketHandle );" in cancel_ticket_block
     assert "cl_steamAuthTicketHandle = 0u;" in cancel_ticket_block
+    assert "QL_Steamworks_HasWebApiAuthTicketAdapter()" in request_ticket_block
+    assert "QL_Steamworks_RequestWebApiAuthTicket( QL_Steamworks_GetWebApiAuthTicketIdentity()," in request_ticket_block
     assert "ticketLength = SteamClient_GetAuthSessionTicket( credential->value, (int)sizeof( credential->value ) );" in request_ticket_block
     assert "hexLength = SteamClient_GetAuthSessionTicket( hexTicket, (int)sizeof( hexTicket ) );" in challenge_ticket_block
     assert "SteamClient_CancelAuthTicket();" in challenge_ticket_block
@@ -8236,10 +8282,13 @@ def test_steamworks_modern_adapter_gaps_stay_explicit_until_owned() -> None:
         "static const char *CL_GetSteamDataSourceFallbackOwnerLabel( void )",
     )
 
+    assert "SteamAPI_ISteamUser_GetAuthTicketForWebApi" in steamworks
+    assert "QL_SteamAPI_GetAuthTicketForWebApiFn" in steamworks
+    assert "QL_Steamworks_RequestWebApiAuthTicket" in steamworks
+    assert "QL_Steamworks_RequestWebApiAuthTicket" in steamworks_header
+    assert "QL_STEAM_CALLBACK_GET_TICKET_FOR_WEB_API_RESPONSE 0xa8" in steamworks
+
     for source_text in (steamworks, steamworks_header):
-        assert "SteamAPI_ISteamUser_GetAuthTicketForWebApi" not in source_text
-        assert "QL_SteamAPI_GetAuthTicketForWebApiFn" not in source_text
-        assert "GetAuthTicketForWebApi( " not in source_text
         assert "SteamAPI_SteamNetworkingSockets" not in source_text
         assert "SteamAPI_ISteamNetworkingSockets" not in source_text
         assert "SteamAPI_SteamNetworkingMessages" not in source_text
@@ -8248,8 +8297,8 @@ def test_steamworks_modern_adapter_gaps_stay_explicit_until_owned() -> None:
 
     assert 'QL_Steamworks_LoadOptionalSymbolAlias( (void **)&state.SteamMatchmakingServers, "SteamMatchmakingServers", "SteamAPI_SteamMatchmakingServers" );' in steamworks
 
-    assert 'return "retail GetAuthSessionTicket";' in auth_api_label_block
-    assert 'return "missing GetAuthTicketForWebApi adapter";' in auth_modern_gap_label_block
+    assert 'return QL_Steamworks_HasWebApiAuthTicketAdapter() ? "GetAuthTicketForWebApi" : "retail GetAuthSessionTicket";' in auth_api_label_block
+    assert 'return QL_Steamworks_HasWebApiAuthTicketAdapter() ? "GetAuthTicketForWebApi adapter available" : "missing GetAuthTicketForWebApi adapter";' in auth_modern_gap_label_block
     assert 'return "legacy ISteamNetworking";' in p2p_transport_label_block
     assert 'return "missing ISteamNetworkingSockets/ISteamNetworkingMessages adapter";' in p2p_modern_gap_label_block
     assert 'return "raw GetAllUGC integer filter";' in ugc_filter_label_block
@@ -8425,7 +8474,7 @@ def test_client_auth_ticket_dispatch_boundary_tracks_round_596_evidence() -> Non
 
     request_ticket_block = _extract_function_block(
         ql_auth,
-        "static qboolean QL_ClientAuth_RequestSteamTicket( ql_auth_credential_t *credential, char *logBuffer, size_t logBufferSize ) {",
+        "static qboolean QL_ClientAuth_RequestSteamTicket( ql_auth_credential_t *credential, char *logBuffer, size_t logBufferSize, uint32_t *webApiTicketHandle ) {",
     )
     handle_steamworks_block = _extract_function_block(
         ql_auth,
@@ -8467,14 +8516,18 @@ def test_client_auth_ticket_dispatch_boundary_tracks_round_596_evidence() -> Non
     assert "QL_Steamworks_RequestAuthTicket( ticketBuffer, (size_t)ticketBufferSize, &ticketLength, &ticketHandle )" in steam_ticket_block
     assert "cl_steamAuthTicketHandle = ticketHandle;" in steam_ticket_block
     assert "if ( !CL_SteamServicesEnabled() ) {" in request_ticket_block
+    assert "QL_Steamworks_HasWebApiAuthTicketAdapter()" in request_ticket_block
+    assert "QL_Steamworks_RequestWebApiAuthTicket( QL_Steamworks_GetWebApiAuthTicketIdentity()," in request_ticket_block
     assert request_ticket_block.index("QL_Steamworks_RunCallbacks();") < request_ticket_block.index(
         "ticketLength = SteamClient_GetAuthSessionTicket( credential->value, (int)sizeof( credential->value ) );"
     )
+    assert "QL_Steamworks_HasWebApiAuthTicketAdapter()" in request_ticket_block
+    assert "QL_Steamworks_RequestWebApiAuthTicket( QL_Steamworks_GetWebApiAuthTicketIdentity()," in request_ticket_block
     assert request_ticket_block.index(
         "ticketLength = SteamClient_GetAuthSessionTicket( credential->value, (int)sizeof( credential->value ) );"
     ) < request_ticket_block.rindex("QL_Steamworks_RunCallbacks();")
     assert execute_block.index("QL_InitAuthCredential( &steamCredential );") < execute_block.index(
-        "QL_ClientAuth_RequestSteamTicket( &steamCredential, steamHex, sizeof( steamHex ) )"
+        "QL_ClientAuth_RequestSteamTicket( &steamCredential, steamHex, sizeof( steamHex ), &webApiTicketHandle )"
     )
     assert execute_block.index("activeCredential = &steamCredential;") < execute_block.index(
         "QL_ClientAuth_LogStage( &transport, \"dispatch\", \"submitting credential\" );"
@@ -8567,7 +8620,7 @@ def test_steam_auth_ticket_replacement_and_cleanup_lifecycle_tracks_round_610() 
     steam_shutdown_block = _extract_function_block(cl_main, "void SteamAPI_Shutdown( void ) {")
     request_ticket_block = _extract_function_block(
         ql_auth,
-        "static qboolean QL_ClientAuth_RequestSteamTicket( ql_auth_credential_t *credential, char *logBuffer, size_t logBufferSize ) {",
+        "static qboolean QL_ClientAuth_RequestSteamTicket( ql_auth_credential_t *credential, char *logBuffer, size_t logBufferSize, uint32_t *webApiTicketHandle ) {",
     )
     challenge_ticket_block = _extract_function_block(
         ql_auth,
@@ -8640,11 +8693,8 @@ def test_steam_auth_ticket_replacement_and_cleanup_lifecycle_tracks_round_610() 
     )
     assert cancel_ticket_block.index("cl_steamAuthTicketHandle = 0u;") < cancel_ticket_block.index("return cancelled;")
 
-    assert "if ( !QL_Steamworks_IsUserLoggedOn() ) {" in request_platform_block
     assert "HAuthTicket handle = state.GetAuthSessionTicket( user, rawTicket, sizeof( rawTicket ), &rawLength );" in request_platform_block
-    assert request_platform_block.index("if ( !QL_Steamworks_IsUserLoggedOn() ) {") < request_platform_block.index(
-        "HAuthTicket handle = state.GetAuthSessionTicket"
-    )
+    assert "QL_Steamworks_IsUserLoggedOn()" not in request_platform_block
     assert request_platform_block.index("HAuthTicket handle = state.GetAuthSessionTicket") < request_platform_block.index(
         "if ( handle == 0 || rawLength == 0 ) {"
     )
@@ -8667,6 +8717,13 @@ def test_steam_auth_ticket_replacement_and_cleanup_lifecycle_tracks_round_610() 
         "ticketLength = SteamClient_GetAuthSessionTicket( credential->value, (int)sizeof( credential->value ) );"
     ) < request_ticket_block.rindex("QL_Steamworks_RunCallbacks();")
 
+    assert "SteamClient_InitForFilesystem();" in challenge_ticket_block
+    assert challenge_ticket_block.index("if ( !CL_SteamServicesEnabled() ) {") < challenge_ticket_block.index(
+        "if ( !SteamClient_IsInitialized() ) {"
+    )
+    assert challenge_ticket_block.index("SteamClient_InitForFilesystem();") < challenge_ticket_block.index(
+        "QL_Steamworks_RunCallbacks();"
+    )
     assert challenge_ticket_block.index("QL_Steamworks_RunCallbacks();") < challenge_ticket_block.index(
         "steamId = SteamClient_GetSteamID();"
     )
